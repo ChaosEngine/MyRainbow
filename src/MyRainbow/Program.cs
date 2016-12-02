@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace MyRainbow
 {
@@ -12,25 +8,32 @@ namespace MyRainbow
     {
         public static void Main(string[] args)
         {
-            MyCartesian cart = new MyCartesian(3, "abcdefg");
+            MyCartesian cart = new MyCartesian(4, "abcdefghijklmopqrstuvwxyz");
 
-            Console.WriteLine($"Alphabet = {cart.AlphabetPower}{Environment.NewLine}"+
+            Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
                 $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}");
 
             var table_of_table_of_chars = cart.Generate();
             var hasher = MD5.Create();
-
-            foreach (var chars_table in table_of_table_of_chars)
+            using (var dbase = new DatabaseHasher())
             {
-                var str = string.Concat(chars_table);
-                var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(str))).Replace("-","").ToLowerInvariant();
+                dbase.EnsureExist();
+                dbase.Purge();
 
-                Console.WriteLine($"MD5({str}) = {hash}");
+                foreach (var chars_table in table_of_table_of_chars)
+                {
+                    var value = string.Concat(chars_table);
+                    var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
 
-                if (Console.KeyAvailable)
-                    break;
+                    //Console.WriteLine($"MD5({value}) = {hash}");
+                    dbase.Insert(value, hash);
+
+                    if (Console.KeyAvailable)
+                        break;
+                }
             }
 
+            Console.WriteLine("Done");
             Console.ReadKey();
         }
     }
