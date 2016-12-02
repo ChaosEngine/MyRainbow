@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A2350619-D01C-4023-A8CC-9376C233EDC4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A229BD99-D571-451D-8773-2342049B3876}"
+	ProjectSection(SolutionItems) = preProject
+		global.json = global.json
+	EndProjectSection
+EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "MyRainbow", "src\MyRainbow\MyRainbow.xproj", "{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9} = {A2350619-D01C-4023-A8CC-9376C233EDC4}
+	EndGlobalSection
+EndGlobal
