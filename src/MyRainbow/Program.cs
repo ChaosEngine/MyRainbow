@@ -14,15 +14,18 @@ namespace MyRainbow
         {
             MyCartesian cart = new MyCartesian(3, "abcdefg");
 
-            Console.WriteLine($"Hello World! AlphabetPower  = {cart.AlphabetPower}");
+            Console.WriteLine($"Alphabet = {cart.AlphabetPower}{Environment.NewLine}"+
+                $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}");
 
             var table_of_table_of_chars = cart.Generate();
             var hasher = MD5.Create();
+
             foreach (var chars_table in table_of_table_of_chars)
             {
                 var str = string.Concat(chars_table);
                 var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(str))).Replace("-","").ToLowerInvariant();
-                Console.WriteLine($"MD5({str})= {hash}");
+
+                Console.WriteLine($"MD5({str}) = {hash}");
 
                 if (Console.KeyAvailable)
                     break;
