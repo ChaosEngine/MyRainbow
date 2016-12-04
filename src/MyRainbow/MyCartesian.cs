@@ -22,6 +22,7 @@ namespace MyRainbow
                 Alphabet = alphabet;
             else
                 Alphabet = _smallAlphabet;
+            Alphabet = string.Concat(Alphabet.Distinct());
         }
 
         public IEnumerable<IEnumerable<char>> Generate()

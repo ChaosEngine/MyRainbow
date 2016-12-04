@@ -6,12 +6,15 @@ namespace MyRainbow
 {
     internal class DatabaseHasher : IDisposable
     {
-        const string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXXXXXXXXXXXX;";
+        private string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
         private SqlConnection _conn;
 
-        public DatabaseHasher()
+        public DatabaseHasher(string connectionString = null)
         {
+            if (!string.IsNullOrEmpty(connectionString))
+                _connectionString = connectionString;
+
             _conn = new SqlConnection(_connectionString);
             _conn.Open();
         }
@@ -27,24 +30,34 @@ namespace MyRainbow
 
         internal void EnsureExist()
         {
+            string table_name = "hashes_md5";
 
-            /*using (var conn = new SqlConnection(connectionString))
+            string cmd_text = $@"IF(NOT EXISTS(SELECT *
+                     FROM INFORMATION_SCHEMA.TABLES
+                     WHERE TABLE_SCHEMA = 'dbo'
+                     AND  TABLE_NAME = '{table_name}'))
+                BEGIN
+
+               CREATE TABLE [dbo].[{table_name}](
+                    [key] [varchar](200) NOT NULL,
+                    [hash] [char](32) NOT NULL,
+                 CONSTRAINT [PK_{table_name}] PRIMARY KEY CLUSTERED 
+                (
+                    [key] ASC
+                )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+                 CONSTRAINT [IX_{table_name}] UNIQUE NONCLUSTERED 
+                (
+                    [hash] ASC
+                )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+                ) ON [PRIMARY]
+               
+            END";
+
+            using (var cmd = new SqlCommand(cmd_text, _conn))
             {
-                conn.Open();
-
-
-//            IF (EXISTS (SELECT * 
-//                 FROM INFORMATION_SCHEMA.TABLES 
-//                 WHERE TABLE_SCHEMA = 'TheSchema' 
-//                 AND  TABLE_NAME = 'TheTable'))
-//BEGIN
-//    --Do Stuff
-//END
-
-
-
-
-            }*/
+                cmd.CommandType = CommandType.Text;
+                cmd.ExecuteNonQuery();
+            }
         }
 
         internal void Insert(string key, string hash)
@@ -65,6 +78,7 @@ namespace MyRainbow
             }
         }
 
+        #region Implementation
         public void Dispose()
         {
             Dispose(true);
@@ -85,6 +99,6 @@ namespace MyRainbow
             }
             // free native resources if there are any.
         }
-
+        #endregion Implementation
     }
 }
