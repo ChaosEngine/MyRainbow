@@ -2,9 +2,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.UserSecrets;
-
-[assembly: UserSecretsId("aspnet-MyRainbow-20161203120550")]
 
 namespace MyRainbow
 {
