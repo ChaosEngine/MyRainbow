@@ -40,21 +40,23 @@ namespace MyRainbow
                 //dbase.Purge();
 
                 stopwatch.Start();
-                long counter = 0;
+                /*long counter = 0;
                 foreach (var chars_table in table_of_table_of_chars)
                 {
                     var value = string.Concat(chars_table);
-                    var hash = "aaa";// BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
+                    var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
 
                     if (counter % 10000 == 0)
+                    {
                         Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
-                    //dbase.Insert(value, hash);
+                        if (Console.KeyAvailable)
+                            break;
+                    }
 
-                    if (Console.KeyAvailable)
-                        break;
+                    //dbase.Insert(value, hash);
                     counter++;
-                }
-                /*Parallel.ForEach(table_of_table_of_chars, (chars_table, parallelLoopState, counter) =>
+                }*/
+                Parallel.ForEach(table_of_table_of_chars, (chars_table, parallelLoopState, counter) =>
                 {
                     if (parallelLoopState.IsStopped || parallelLoopState.IsExceptional || parallelLoopState.ShouldExitCurrentIteration)
                         return;
@@ -63,12 +65,14 @@ namespace MyRainbow
                     var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
 
                     if (counter % 10000 == 0)
+                    {
                         Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
-                    //dbase.Insert(value, hash);
+                        if (Console.KeyAvailable)
+                            parallelLoopState.Stop();
+                    }
 
-                    if (Console.KeyAvailable)
-                        parallelLoopState.Stop();
-                });*/
+                    //dbase.Insert(value, hash);
+                });
                 stopwatch.Stop();
             }
 
