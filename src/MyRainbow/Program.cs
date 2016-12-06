@@ -25,9 +25,11 @@ namespace MyRainbow
             MyCartesian cart = new MyCartesian(3, "abcdefghijklmopqrstuvwxyz");
 
             Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-                $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}");
+                $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}"
+                $"Combination count = {cart.CombinationCount}");
 
             var table_of_table_of_chars = cart.Generate();
+            Console.WriteLine("Keys generated");
             var hasher = MD5.Create();
             using (var dbase = new DatabaseHasher(GetConnectionStringFromSecret(args)))
             {

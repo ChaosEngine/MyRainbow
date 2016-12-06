@@ -6,7 +6,7 @@ namespace MyRainbow
 {
     internal class DatabaseHasher : IDisposable
     {
-        private string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
+        private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
         private SqlConnection _conn;
 
