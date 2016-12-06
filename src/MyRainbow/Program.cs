@@ -1,7 +1,9 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using System;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using System.Threading.Tasks;
 
 namespace MyRainbow
 {
@@ -22,34 +24,55 @@ namespace MyRainbow
 
         public static void Main(string[] args)
         {
-            MyCartesian cart = new MyCartesian(3, "abcdefghijklmopqrstuvwxyz");
+            MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
 
             Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-                $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}"
+                $"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
                 $"Combination count = {cart.CombinationCount}");
 
-            var table_of_table_of_chars = cart.Generate();
+            var table_of_table_of_chars = cart.Generate2();
             Console.WriteLine("Keys generated");
             var hasher = MD5.Create();
+            var stopwatch = new Stopwatch();
             using (var dbase = new DatabaseHasher(GetConnectionStringFromSecret(args)))
             {
-                dbase.EnsureExist();
-                dbase.Purge();
+                //dbase.EnsureExist();
+                //dbase.Purge();
 
+                stopwatch.Start();
+                long counter = 0;
                 foreach (var chars_table in table_of_table_of_chars)
                 {
                     var value = string.Concat(chars_table);
-                    var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
+                    var hash = "aaa";// BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
 
-                    //Console.WriteLine($"MD5({value}) = {hash}");
-                    dbase.Insert(value, hash);
+                    if (counter % 10000 == 0)
+                        Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
+                    //dbase.Insert(value, hash);
 
                     if (Console.KeyAvailable)
                         break;
+                    counter++;
                 }
+                /*Parallel.ForEach(table_of_table_of_chars, (chars_table, parallelLoopState, counter) =>
+                {
+                    if (parallelLoopState.IsStopped || parallelLoopState.IsExceptional || parallelLoopState.ShouldExitCurrentIteration)
+                        return;
+
+                    var value = string.Concat(chars_table);
+                    var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
+
+                    if (counter % 10000 == 0)
+                        Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
+                    //dbase.Insert(value, hash);
+
+                    if (Console.KeyAvailable)
+                        parallelLoopState.Stop();
+                });*/
+                stopwatch.Stop();
             }
 
-            Console.WriteLine("Done");
+            Console.WriteLine($"Done. Elpased time = {stopwatch.Elapsed}");
             Console.ReadKey();
         }
     }
