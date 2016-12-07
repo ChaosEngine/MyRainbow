@@ -4,35 +4,35 @@ using System.Data.SqlClient;
 
 namespace MyRainbow
 {
-    internal class DatabaseHasher : IDisposable
-    {
-        private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
+	internal class DatabaseHasher : IDisposable
+	{
+		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
-        private SqlConnection _conn;
+		private SqlTransaction _tran;
 
-        public DatabaseHasher(string connectionString = null)
-        {
-            if (!string.IsNullOrEmpty(connectionString))
-                _connectionString = connectionString;
+		public SqlConnection Conn { get; set; }
+		public SqlTransaction Tran { get; set; }
 
-            _conn = new SqlConnection(_connectionString);
-            _conn.Open();
-        }
+		public DatabaseHasher(SqlConnection conn, SqlTransaction tran = null)
+		{
+			Conn = conn;
+			Tran = tran;
+		}
 
-        internal void Purge()
-        {
-            using (var cmd = new SqlCommand("truncate table hashes_md5", _conn))
-            {
-                cmd.CommandType = System.Data.CommandType.Text;
-                cmd.ExecuteNonQuery();
-            }
-        }
+		internal void Purge()
+		{
+			using (var cmd = new SqlCommand("truncate table hashes_md5", Conn, Tran))
+			{
+				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.ExecuteNonQuery();
+			}
+		}
 
-        internal void EnsureExist()
-        {
-            string table_name = "hashes_md5";
+		internal void EnsureExist()
+		{
+			string table_name = "hashes_md5";
 
-            string cmd_text = $@"IF(NOT EXISTS(SELECT *
+			string cmd_text = $@"IF(NOT EXISTS(SELECT *
                      FROM INFORMATION_SCHEMA.TABLES
                      WHERE TABLE_SCHEMA = 'dbo'
                      AND  TABLE_NAME = '{table_name}'))
@@ -53,52 +53,52 @@ namespace MyRainbow
                
             END";
 
-            using (var cmd = new SqlCommand(cmd_text, _conn))
-            {
-                cmd.CommandType = CommandType.Text;
-                cmd.ExecuteNonQuery();
-            }
-        }
+			using (var cmd = new SqlCommand(cmd_text, Conn, Tran))
+			{
+				cmd.CommandType = CommandType.Text;
+				cmd.ExecuteNonQuery();
+			}
+		}
 
-        internal void Insert(string key, string hash)
-        {
-            using (var cmd = new SqlCommand("insert into hashes_md5([key], hash) values(@key, @hash);", _conn))
-            {
-                cmd.CommandType = System.Data.CommandType.Text;
+		internal void Insert(string key, string hash)
+		{
+			using (var cmd = new SqlCommand("insert into hashes_md5([key], hash) values(@key, @hash);", Conn, Tran))
+			{
+				cmd.CommandType = System.Data.CommandType.Text;
 
-                var param_key = new SqlParameter("@key", System.Data.SqlDbType.VarChar, 200, key);
-                param_key.Value = key;
-                cmd.Parameters.Add(param_key);
-                var hash_key = new SqlParameter("@hash", System.Data.SqlDbType.VarChar, 200, key);
-                hash_key.Value = hash;
-                cmd.Parameters.Add(hash_key);
+				var param_key = new SqlParameter("@key", System.Data.SqlDbType.VarChar, 200, key);
+				param_key.Value = key;
+				cmd.Parameters.Add(param_key);
+				var hash_key = new SqlParameter("@hash", System.Data.SqlDbType.VarChar, 200, key);
+				hash_key.Value = hash;
+				cmd.Parameters.Add(hash_key);
 
-                cmd.Prepare();
-                cmd.ExecuteNonQuery();
-            }
-        }
+				cmd.Prepare();
+				cmd.ExecuteNonQuery();
+			}
+		}
 
-        #region Implementation
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
+		#region Implementation
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                // free managed resources
-                if (_conn != null)
-                {
-                    if (_conn.State != ConnectionState.Closed)
-                        _conn.Close();
-                    _conn.Dispose();
-                }
-            }
-            // free native resources if there are any.
-        }
-        #endregion Implementation
-    }
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				// free managed resources
+				//if (Conn != null)
+				//{
+				//	if (Conn.State != ConnectionState.Closed)
+				//		Conn.Close();
+				//	Conn.Dispose();
+				//}
+			}
+			// free native resources if there are any.
+		}
+		#endregion Implementation
+	}
 }
