@@ -10,8 +10,8 @@ namespace MyRainbow
 
 		private SqlTransaction _tran;
 
-		public SqlConnection Conn { get; set; }
-		public SqlTransaction Tran { get; set; }
+		private SqlConnection Conn { get; set; }
+		private SqlTransaction Tran { get; set; }
 
 		public DatabaseHasher(SqlConnection conn, SqlTransaction tran = null)
 		{

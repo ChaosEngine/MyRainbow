@@ -47,131 +47,71 @@ namespace MyRainbow
 
 					stopwatch.Start();
 					long counter = 0;
-					dbase.Tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+					var tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+					SqlCommand cmd = new SqlCommand("", conn, tran);
+					cmd.CommandType = System.Data.CommandType.Text;
+					int param_counter = 0;
 					foreach (var chars_table in table_of_table_of_chars)
 					{
-						var value = string.Concat(chars_table);
+						var key = string.Concat(chars_table);
 						//if ("tdtzz".CompareTo(value) >= 0) continue;
-						var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
+						var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
-						dbase.Insert(value, hash);
+						////dbase.Insert(value, hash);
+						cmd.CommandText += $"insert into hashes_md5([key], hash) values(@key{param_counter}, @hash{param_counter});{Environment.NewLine}";
+						var param_key = new SqlParameter("@key" + param_counter, System.Data.SqlDbType.VarChar, 20);
+						param_key.Value = key;
+						cmd.Parameters.Add(param_key);
+						var hash_key = new SqlParameter("@hash" + param_counter, System.Data.SqlDbType.VarChar, 32);
+						hash_key.Value = hash;
+						cmd.Parameters.Add(hash_key);
+						param_counter++;
 
-						if (counter % 10000 == 0)
+						if (counter % 200 == 0)
 						{
-							dbase.Tran.Commit();
+							cmd.Prepare();
+							cmd.ExecuteNonQuery();
+							cmd.Dispose();
+							cmd = new SqlCommand("", conn, tran);
+							cmd.CommandType = System.Data.CommandType.Text;
+							param_counter = 0;
+						}
 
-							Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
+						if (counter % 20000 == 0)
+						{
+							if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
+							{
+								cmd.Prepare();
+								cmd.ExecuteNonQuery();
+								cmd.Dispose();
+								cmd = new SqlCommand("", conn, tran);
+								cmd.CommandType = System.Data.CommandType.Text;
+								param_counter = 0;
+							}
+							tran.Commit();
+							tran = null;
+
+							Console.WriteLine($"MD5({key}) = {hash}, counter = {counter}");
 							if (Console.KeyAvailable)
 								break;
 
-							dbase.Tran = dbase.Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+							cmd.Transaction = tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
 						}
 						counter++;
 					}
 
-					if (dbase.Tran != null)
-						dbase.Tran.Commit();
+					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
+					{
+						cmd.Prepare();
+						cmd.ExecuteNonQuery();
+						cmd.Dispose();
+					}
+					if (tran != null)
+						tran.Commit();
 
-					//Parallel.ForEach(table_of_table_of_chars, (chars_table, parallelLoopState, counter) =>
-					//{
-					//    if (parallelLoopState.IsStopped || parallelLoopState.IsExceptional || parallelLoopState.ShouldExitCurrentIteration)
-					//        return;
-
-					//    var value = string.Concat(chars_table);
-					//    var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
-
-					//    if (counter % 10000 == 0)
-					//    {
-					//        Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
-					//        if (Console.KeyAvailable)
-					//            parallelLoopState.Stop();
-					//    }
-
-					//    //dbase.Insert(value, hash);
-					//});
 					stopwatch.Stop();
 				}
 			}
-			/*try
-			{
-				var conn_str = GetConnectionStringFromSecret(args);
-
-				Parallel.ForEach(
-					table_of_table_of_chars,                          // source collection
-					() =>                                             // thread local initializer
-					{
-						var conn = new SqlConnection(conn_str);
-						conn.Open();
-						var tran = conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
-
-						var database = new DatabaseHasher(conn, tran);
-						Console.WriteLine("new DatabaseHasher");
-						return database;
-					},
-					(chars_table, parallelLoopState, counter, database) =>     // body
-					{
-						if (parallelLoopState.IsStopped || parallelLoopState.IsExceptional || parallelLoopState.ShouldExitCurrentIteration)
-							return database;
-
-						var value = string.Concat(chars_table);
-						var hash = BitConverter.ToString(hasher.ComputeHash(Encoding.UTF8.GetBytes(value))).Replace("-", "").ToLowerInvariant();
-
-						database.Insert(value, hash);
-
-						if (counter % 10000 == 0)
-						{
-							Console.WriteLine($"MD5({value}) = {hash}, counter = {counter}");
-							database.Tran.Commit();
-
-							if (Console.KeyAvailable)
-								parallelLoopState.Stop();
-
-							database.Tran = database.Conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
-						}
-
-					
-						//var bulk = new SqlBulkCopy(conn_str);
-
-						Candidates candidates = new Candidates()
-						{
-							new Candidate() { Key = "sdsd", Hash = "John" },
-							new Candidate() { Key = "ghfgh", Hash = "Joe" }
-						};
-
-						//bulk.WriteToServer(//new DbDataReader()
-						//    candidates.GetDataReader()
-						//    );
-
-						return database;
-					},
-					(database) =>
-					{
-						// thread local aggregator
-						//Interlocked.Add(ref sum, localSum)
-
-						if (database.Tran != null)
-							database.Tran.Commit();
-
-						database.Dispose();
-						Console.WriteLine("database.Dispose");
-						database = null;
-					}
-					);
-
-				//Console.WriteLine("\nSum={0}", sum);
-			}
-			// No exception is expected in this example, but if one is still thrown from a task,
-			// it will be wrapped in AggregateException and propagated to the main thread.
-			catch (AggregateException e)
-			{
-				Console.WriteLine("Parallel.ForEach has thrown an exception. THIS WAS NOT EXPECTED.\n{0}", e);
-			}*/
-
-
-
-
-
-
 
 			Console.WriteLine($"Done. Elpased time = {stopwatch.Elapsed}");
 			Console.ReadKey();
