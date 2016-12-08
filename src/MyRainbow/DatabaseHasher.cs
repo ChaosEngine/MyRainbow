@@ -8,8 +8,6 @@ namespace MyRainbow
 	{
 		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
-		private SqlTransaction _tran;
-
 		private SqlConnection Conn { get; set; }
 		private SqlTransaction Tran { get; set; }
 
@@ -21,7 +19,7 @@ namespace MyRainbow
 
 		internal void Purge()
 		{
-			using (var cmd = new SqlCommand("truncate table hashes_md5", Conn, Tran))
+			using (var cmd = new SqlCommand("truncate table hashes", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				cmd.ExecuteNonQuery();
@@ -30,7 +28,7 @@ namespace MyRainbow
 
 		internal void EnsureExist()
 		{
-			string table_name = "hashes_md5";
+			string table_name = "hashes";
 
 			string cmd_text = $@"IF(NOT EXISTS(SELECT *
                      FROM INFORMATION_SCHEMA.TABLES
@@ -39,17 +37,22 @@ namespace MyRainbow
                 BEGIN
 
                CREATE TABLE [dbo].[{table_name}](
-                    [key] [varchar](200) NOT NULL,
-                    [hash] [char](32) NOT NULL,
-                 CONSTRAINT [PK_{table_name}] PRIMARY KEY CLUSTERED 
-                (
-                    [key] ASC
-                )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-                 CONSTRAINT [IX_{table_name}] UNIQUE NONCLUSTERED 
-                (
-                    [hash] ASC
-                )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-                ) ON [PRIMARY]
+					[key] [varchar](20) NOT NULL,
+					[hashMD5] [char](32) NOT NULL,
+					[hashSHA256] [char](64) NOT NULL,
+				 CONSTRAINT [PK_hashes] PRIMARY KEY CLUSTERED 
+				(
+					[key] ASC
+				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY],
+				 CONSTRAINT [IX_hashMD5] UNIQUE NONCLUSTERED 
+				(
+					[hashMD5] ASC
+				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY],
+				 CONSTRAINT [IX_hashSHA256] UNIQUE NONCLUSTERED 
+				(
+					[hashSHA256] ASC
+				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY]
+				) ON [PRIMARY]
                
             END";
 
@@ -57,6 +60,16 @@ namespace MyRainbow
 			{
 				cmd.CommandType = CommandType.Text;
 				cmd.ExecuteNonQuery();
+			}
+		}
+
+		internal string GetLastKeyEntry()
+		{
+			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM[test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
+			{
+				cmd.CommandType = System.Data.CommandType.Text;
+				var str = cmd.ExecuteScalar();
+				return str == null ? null : (string)str;
 			}
 		}
 
