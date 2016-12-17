@@ -48,6 +48,22 @@ namespace MyRainbow
 		{
 			var database = Cache.GetDatabase("test");
 			var collection = database.GetCollection<BsonDocument>("hashes");
+
+			/*var ind_def = new BsonDocument
+			{
+				{ "MD5", 1 },
+			};
+			collection.Indexes.CreateOne(ind_def);
+			ind_def = new BsonDocument
+			{
+				{ "SHA256", 1 },
+			};
+			collection.Indexes.CreateOne(ind_def);*/
+
+			var idxes = collection.Indexes.List().ToList();
+			foreach (var idx in idxes)
+			{
+			}
 		}
 
 		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
@@ -144,9 +160,6 @@ namespace MyRainbow
 
 		public string GetLastKeyEntry()
 		{
-			//TODO: implement
-			//return "";
-
 			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
 			var count = collection.Count(new BsonDocument());
@@ -164,7 +177,7 @@ namespace MyRainbow
 		public void Purge()
 		{
 			var dbase = Cache.GetDatabase("test");
-			dbase.DropCollection("hashes");
+			dbase.GetCollection<BsonDocument>("hashes").DeleteMany(new BsonDocument());
 		}
 
 		#endregion Implementation
