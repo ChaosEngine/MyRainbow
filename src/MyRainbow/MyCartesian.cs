@@ -64,27 +64,14 @@ namespace MyRainbow
 
 		public string Key
 		{
-			get
-			{
-				return key;
-			}
-			set
-			{
-				key = value;
-			}
+			get { return key; }
+			set { key = value; }
 		}
 
 		public string Hash
 		{
-			get
-			{
-				return hash;
-			}
-
-			set
-			{
-				hash = value;
-			}
+			get { return hash; }
+			set { hash = value; }
 		}
 	}
 

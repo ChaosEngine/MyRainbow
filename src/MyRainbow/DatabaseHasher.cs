@@ -8,20 +8,21 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class DatabaseHasher : IDisposable
+	internal class DatabaseHasher : IDbHasher, IDisposable
 	{
 		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
 		private SqlConnection Conn { get; set; }
 		private SqlTransaction Tran { get; set; }
 
-		public DatabaseHasher(SqlConnection conn, SqlTransaction tran = null)
+		public DatabaseHasher(string connectionString)
 		{
-			Conn = conn;
-			Tran = tran;
+			Conn = new SqlConnection(connectionString);
+			Conn.Open();
+			Tran = null;
 		}
 
-		internal void Purge()
+		public void Purge()
 		{
 			using (var cmd = new SqlCommand("truncate table hashes", Conn, Tran))
 			{
@@ -30,7 +31,7 @@ namespace MyRainbow
 			}
 		}
 
-		internal void EnsureExist()
+		public void EnsureExist()
 		{
 			string table_name = "hashes";
 
@@ -67,8 +68,9 @@ namespace MyRainbow
 			}
 		}
 
-		internal void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
-			Func<string, string, string, long, long, bool> shouldBreakFun, Stopwatch stopwatch = null, int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
+		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
+			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
 			string last_key_entry = GetLastKeyEntry();
 
@@ -161,7 +163,7 @@ namespace MyRainbow
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 					//if (Console.KeyAvailable)
 					//	break;
-					if (shouldBreakFun(key, hashMD5, hashSHA256, counter, tps))
+					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
 					cmd.Transaction = tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
@@ -192,7 +194,7 @@ namespace MyRainbow
 			}
 		}
 
-		internal string GetLastKeyEntry()
+		public string GetLastKeyEntry()
 		{
 			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM[test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
 			{
@@ -202,25 +204,26 @@ namespace MyRainbow
 			}
 		}
 
-		internal void Insert(string key, string hash)
-		{
-			using (var cmd = new SqlCommand("insert into hashes_md5([key], hash) values(@key, @hash);", Conn, Tran))
-			{
-				cmd.CommandType = System.Data.CommandType.Text;
+		//public void Insert(string key, string hash)
+		//{
+		//	using (var cmd = new SqlCommand("insert into hashes_md5([key], hash) values(@key, @hash);", Conn, Tran))
+		//	{
+		//		cmd.CommandType = System.Data.CommandType.Text;
 
-				var param_key = new SqlParameter("@key", System.Data.SqlDbType.VarChar, 200, key);
-				param_key.Value = key;
-				cmd.Parameters.Add(param_key);
-				var hash_key = new SqlParameter("@hash", System.Data.SqlDbType.VarChar, 200, key);
-				hash_key.Value = hash;
-				cmd.Parameters.Add(hash_key);
+		//		var param_key = new SqlParameter("@key", System.Data.SqlDbType.VarChar, 200, key);
+		//		param_key.Value = key;
+		//		cmd.Parameters.Add(param_key);
+		//		var hash_key = new SqlParameter("@hash", System.Data.SqlDbType.VarChar, 200, key);
+		//		hash_key.Value = hash;
+		//		cmd.Parameters.Add(hash_key);
 
-				cmd.Prepare();
-				cmd.ExecuteNonQuery();
-			}
-		}
+		//		cmd.Prepare();
+		//		cmd.ExecuteNonQuery();
+		//	}
+		//}
 
 		#region Implementation
+
 		public void Dispose()
 		{
 			Dispose(true);
@@ -231,16 +234,17 @@ namespace MyRainbow
 		{
 			if (disposing)
 			{
-				// free managed resources
-				//if (Conn != null)
-				//{
-				//	if (Conn.State != ConnectionState.Closed)
-				//		Conn.Close();
-				//	Conn.Dispose();
-				//}
+				//free managed resources
+				if (Conn != null)
+				{
+					if (Conn.State != ConnectionState.Closed)
+						Conn.Close();
+					Conn.Dispose();
+				}
 			}
 			// free native resources if there are any.
 		}
+
 		#endregion Implementation
 	}
 }
