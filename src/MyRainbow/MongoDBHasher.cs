@@ -16,9 +16,7 @@ namespace MyRainbow
 
 		public MongoDBHasher(string mongoConnectionString)
 		{
-			//ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConfiguration);
-			//Cache = redis;
-
+			//"mongodb://test:PASSPASSPASS@192.168.0.2:27017/test"
 			var client = new MongoClient(mongoConnectionString);
 			Cache = client;
 		}
@@ -48,23 +46,8 @@ namespace MyRainbow
 
 		public void EnsureExist()
 		{
-			var database = Cache.GetDatabase("hasher");
-
-			var collection = database.GetCollection<BsonDocument>("bar");
-
-			var document = new BsonDocument
-			{
-				{ "name", "MongoDB" },
-				{ "type", "Database" },
-				{ "count", 1 },
-				{ "info", new BsonDocument
-					{
-						{ "x", 203 },
-						{ "y", 102 }
-					}}
-			};
-
-			collection.InsertOne(document);
+			var database = Cache.GetDatabase("test");
+			var collection = database.GetCollection<BsonDocument>("hashes");
 		}
 
 		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
@@ -81,9 +64,10 @@ namespace MyRainbow
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
 
-			//var opts = new DistributedCacheEntryOptions();
-			var dbase = Cache.GetDatabase("hasher");
+			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
+			var models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
+			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
 				var key = string.Concat(chars_table);
@@ -98,10 +82,29 @@ namespace MyRainbow
 					{ "MD5", hashMD5 },
 					{ "SHA256", hashSHA256 }
 				};
-				collection.InsertOne(doc);
+				//collection.InsertOne(doc);
+				var mod = models.ElementAtOrDefault(param_counter);
+				if (mod == null)
+				{
+					mod = new InsertOneModel<BsonDocument>(doc);
+					models.Add(mod);
+				}
+				else
+				{
+					models[param_counter] = new InsertOneModel<BsonDocument>(doc);
+				}
+
+				param_counter++;
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
+					if (models.Count > 0)
+					{
+						collection.BulkWrite(models, new BulkWriteOptions { IsOrdered = false });
+						//models.Clear();
+						param_counter = 0;
+					}
+
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 				}
@@ -122,15 +125,16 @@ namespace MyRainbow
 
 		public void Verify()
 		{
-			var dbase = Cache.GetDatabase("hasher");
+			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
 
 			var count = collection.Count(new BsonDocument());
 
 			//echo -n "gdg" | md5sum - 9409135542c79d1ed50c9fde07fa600a
 			//var r_val = dbase.StringGet("MD5_" + "9409135542c79d1ed50c9fde07fa600a");
+			//echo -n "ilfad" | md5sum - b25319faaaea0bf397b2bed872b78c45
 
-			var filter = Builders<BsonDocument>.Filter.Eq("MD5", "9409135542c79d1ed50c9fde07fa600a");
+			var filter = Builders<BsonDocument>.Filter.Eq("MD5", "b25319faaaea0bf397b2bed872b78c45");
 			var cursor = collection.Find(filter).ToCursor();
 			foreach (var document in cursor.ToEnumerable())
 			{
@@ -143,8 +147,11 @@ namespace MyRainbow
 			//TODO: implement
 			//return "";
 
-			var dbase = Cache.GetDatabase("hasher");
+			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
+			var count = collection.Count(new BsonDocument());
+			if (count <= 0)
+				return null;
 
 			var filter = Builders<BsonDocument>.Filter.Exists("key");
 			var sort = Builders<BsonDocument>.Sort.Descending("key");
@@ -156,7 +163,7 @@ namespace MyRainbow
 
 		public void Purge()
 		{
-			var dbase = Cache.GetDatabase("hasher");
+			var dbase = Cache.GetDatabase("test");
 			dbase.DropCollection("hashes");
 		}
 
