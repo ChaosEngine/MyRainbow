@@ -40,7 +40,7 @@ namespace MyRainbow
 			for (int i = 0; i < Length; i++)
 				input[i] = Alphabet;
 
-			var result = input.CartesianProductAsync();
+			var result = input.CartesianProductAsyncParallel();
 
 			return result;
 		}
