@@ -13,5 +13,6 @@ namespace MyRainbow
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000);
 		string GetLastKeyEntry();
 		void Purge();
+		void Verify();
 	}
 }

@@ -8,19 +8,22 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class DatabaseHasher : IDbHasher, IDisposable
+	internal class SqlDatabaseHasher : IDbHasher, IDisposable
 	{
 		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
 		private SqlConnection Conn { get; set; }
 		private SqlTransaction Tran { get; set; }
 
-		public DatabaseHasher(string connectionString)
+		public SqlDatabaseHasher(string connectionString)
 		{
 			Conn = new SqlConnection(connectionString);
 			Conn.Open();
 			Tran = null;
 		}
+
+
+		#region Implementation
 
 		public void Purge()
 		{
@@ -196,7 +199,7 @@ namespace MyRainbow
 
 		public string GetLastKeyEntry()
 		{
-			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM[test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
+			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM [test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				var str = cmd.ExecuteScalar();
@@ -222,8 +225,6 @@ namespace MyRainbow
 		//	}
 		//}
 
-		#region Implementation
-
 		public void Dispose()
 		{
 			Dispose(true);
@@ -243,6 +244,25 @@ namespace MyRainbow
 				}
 			}
 			// free native resources if there are any.
+		}
+
+		public void Verify()
+		{
+			using (var cmd = new SqlCommand("SELECT * FROM hashes_md5 WHERE hashMD5 = @hashMD5", Conn, Tran))
+			{
+				cmd.CommandType = System.Data.CommandType.Text;
+
+				var param_key = new SqlParameter("@hashMD5", System.Data.SqlDbType.Char, 32);
+				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
+				cmd.Parameters.Add(param_key);
+				using (var rdr = cmd.ExecuteReader())
+				{
+					while (rdr.Read())
+					{
+						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["MD5"], rdr["SHA256"]);
+					}
+				}
+			}
 		}
 
 		#endregion Implementation

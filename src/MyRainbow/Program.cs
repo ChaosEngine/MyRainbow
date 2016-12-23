@@ -39,7 +39,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var dbase = new DatabaseHasher(GetConnectionStringFromSecret(args, "SqlConnection")))
+			using (var dbase = new SqlDatabaseHasher(GetConnectionStringFromSecret(args, "SqlConnection")))
 			{
 				dbase.EnsureExist();
 				//dbase.Purge();
@@ -134,11 +134,49 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
+		internal static void CassandraExample(string[] args)
+		{
+			MyCartesian cart = new MyCartesian(3, "abcdefghijklmopqrstuvwxyz");
+
+			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
+				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
+				$"Combination count = {cart.CombinationCount}");
+
+			var table_of_table_of_chars = cart.Generate2();
+			Console.WriteLine("Keys generated");
+			var hasherMD5 = MD5.Create();
+			var hasherSHA256 = SHA256.Create();
+			var stopwatch = new Stopwatch();
+
+			using (var dbase = new CassandraDBHasher(GetConnectionStringFromSecret(args, "Cassandra")))
+			{
+				dbase.EnsureExist();
+				//dbase.Purge();
+
+				dbase.Generate(table_of_table_of_chars, hasherMD5, hasherSHA256,
+					(key, hashMD5, hashSHA256, counter, tps) =>
+					{
+						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+						if (Console.KeyAvailable)
+							return true;
+						return false;
+					}, stopwatch);
+
+				stopwatch.Stop();
+
+				dbase.Verify();
+			}
+
+			Console.WriteLine($"Done. Elpased time = {stopwatch.Elapsed}");
+			Console.ReadKey();
+		}
+
 		public static void Main(string[] args)
 		{
 			//SqlServerExample(args);
 			//RedisExample(args);
-			MongoDBExample(args);
+			//MongoDBExample(args);
+			CassandraExample(args);
 		}
 	}
 }
