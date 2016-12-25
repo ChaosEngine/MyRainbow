@@ -99,48 +99,50 @@ namespace MyRainbow
 			var batch = new BatchStatement();
 
 			//int param_counter = 0;
-			var canc = new CancellationTokenSource();
-			foreach (var chars_table in tableOfTableOfChars)
+			using (var canc = new CancellationTokenSource())
 			{
-				var key = string.Concat(chars_table);
-				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-
-				//work
-				batch.Add(profileStmt.Bind(counter, key, hashMD5, hashSHA256));
-
-
-
-				//param_counter++;
-
-				if (counter % batchTransactionCommitCount == 0)
+				foreach (var chars_table in tableOfTableOfChars)
 				{
+					var key = string.Concat(chars_table);
+					if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
+					var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+					var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+
+					//work
+					batch.Add(profileStmt.Bind(counter, key, hashMD5, hashSHA256));
+
+
+
+					//param_counter++;
+
+					if (counter % batchTransactionCommitCount == 0)
+					{
+						dbase.Execute(batch);
+						batch = new BatchStatement();
+
+						if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
+						{
+							canc.Cancel();
+							break;
+						}
+					}
+
+					if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
+					{
+						if (last_pause_counter > 0)
+						{
+							tps = counter - last_pause_counter;
+							nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
+						}
+						last_pause_counter = counter;
+					}
+
+					counter++;
+				}//end foreach
+
+				if (!batch.IsEmpty)
 					dbase.Execute(batch);
-					batch = new BatchStatement();
-
-					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
-					{
-						canc.Cancel();
-						break;
-					}
-				}
-
-				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
-				{
-					if (last_pause_counter > 0)
-					{
-						tps = counter - last_pause_counter;
-						nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
-					}
-					last_pause_counter = counter;
-				}
-
-				counter++;
-			}//end foreach
-
-			if (!batch.IsEmpty)
-				dbase.Execute(batch);
+			}
 		}
 
 		public string GetLastKeyEntry()

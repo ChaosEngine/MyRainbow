@@ -207,24 +207,6 @@ namespace MyRainbow
 			}
 		}
 
-		//public void Insert(string key, string hash)
-		//{
-		//	using (var cmd = new SqlCommand("insert into hashes_md5([key], hash) values(@key, @hash);", Conn, Tran))
-		//	{
-		//		cmd.CommandType = System.Data.CommandType.Text;
-
-		//		var param_key = new SqlParameter("@key", System.Data.SqlDbType.VarChar, 200, key);
-		//		param_key.Value = key;
-		//		cmd.Parameters.Add(param_key);
-		//		var hash_key = new SqlParameter("@hash", System.Data.SqlDbType.VarChar, 200, key);
-		//		hash_key.Value = hash;
-		//		cmd.Parameters.Add(hash_key);
-
-		//		cmd.Prepare();
-		//		cmd.ExecuteNonQuery();
-		//	}
-		//}
-
 		public void Dispose()
 		{
 			Dispose(true);
@@ -248,7 +230,7 @@ namespace MyRainbow
 
 		public void Verify()
 		{
-			using (var cmd = new SqlCommand("SELECT * FROM hashes_md5 WHERE hashMD5 = @hashMD5", Conn, Tran))
+			using (var cmd = new SqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 
@@ -259,7 +241,7 @@ namespace MyRainbow
 				{
 					while (rdr.Read())
 					{
-						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["MD5"], rdr["SHA256"]);
+						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
 				}
 			}

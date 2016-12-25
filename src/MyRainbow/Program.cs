@@ -54,6 +54,8 @@ namespace MyRainbow
 					}, stopwatch);
 
 				stopwatch.Stop();
+
+				dbase.Verify();
 			}
 
 			Console.WriteLine($"Done. Elpased time = {stopwatch.Elapsed}");
@@ -173,10 +175,10 @@ namespace MyRainbow
 
 		public static void Main(string[] args)
 		{
-			//SqlServerExample(args);
+			SqlServerExample(args);
 			//RedisExample(args);
 			//MongoDBExample(args);
-			CassandraExample(args);
+			//CassandraExample(args);
 		}
 	}
 }

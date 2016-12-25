@@ -86,60 +86,62 @@ namespace MyRainbow
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
 			var models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
 			//int param_counter = 0;
-			var canc = new CancellationTokenSource();
-			foreach (var chars_table in tableOfTableOfChars)
+			using (var canc = new CancellationTokenSource())
 			{
-				var key = string.Concat(chars_table);
-				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				foreach (var chars_table in tableOfTableOfChars)
+				{
+					var key = string.Concat(chars_table);
+					if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
+					var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+					var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
-				//work
-				var doc = new BsonDocument
+					//work
+					var doc = new BsonDocument
 				{
 					{ "key", key },
 					{ "MD5", hashMD5 },
 					{ "SHA256", hashSHA256 }
 				};
-				//collection.InsertOne(doc);
-				//if (models.ElementAtOrDefault(param_counter) == null)
+					//collection.InsertOne(doc);
+					//if (models.ElementAtOrDefault(param_counter) == null)
 					models.Add(new InsertOneModel<BsonDocument>(doc));
-				//else
-				//	models[param_counter] = new InsertOneModel<BsonDocument>(doc);
+					//else
+					//	models[param_counter] = new InsertOneModel<BsonDocument>(doc);
 
-				//param_counter++;
+					//param_counter++;
 
-				if (counter % batchTransactionCommitCount == 0)
-				{
-					if (models.Count > 0)
+					if (counter % batchTransactionCommitCount == 0)
 					{
-						collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
-						models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
-						//param_counter = 0;
+						if (models.Count > 0)
+						{
+							collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
+							models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
+							//param_counter = 0;
+						}
+
+						if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
+						{
+							canc.Cancel();
+							break;
+						}
 					}
 
-					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
+					if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
 					{
-						canc.Cancel();
-						break;
+						if (last_pause_counter > 0)
+						{
+							tps = counter - last_pause_counter;
+							nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
+						}
+						last_pause_counter = counter;
 					}
-				}
 
-				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
-				{
-					if (last_pause_counter > 0)
-					{
-						tps = counter - last_pause_counter;
-						nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
-					}
-					last_pause_counter = counter;
-				}
+					counter++;
+				}//end foreach
 
-				counter++;
-			}//end foreach
-
-			if (models.Count > 0)
-				collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
+				if (models.Count > 0)
+					collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
+			}
 		}
 
 		public void Verify()
