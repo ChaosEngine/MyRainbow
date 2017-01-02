@@ -219,7 +219,7 @@ namespace MyRainbow
 				{
 					while (rdr.Read())
 					{
-						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["hashMD5"], rdr["hashSHA256"]);
+						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["[key]"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
 				}
 			}

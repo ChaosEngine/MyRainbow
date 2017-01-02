@@ -190,7 +190,7 @@ namespace MyRainbow
 			using (var dbase = new MySqlDatabaseHasher(GetParamFromCmdSecretOrEnv(args, "MySQL")))
 			{
 				dbase.EnsureExist();
-				dbase.Purge();
+				//dbase.Purge();
 
 				dbase.Generate(table_of_table_of_chars, hasherMD5, hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
