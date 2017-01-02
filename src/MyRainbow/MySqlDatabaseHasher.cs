@@ -43,13 +43,13 @@ namespace MyRainbow
 
 		public void EnsureExist()
 		{
-			string table_name = "hashes";
+			string table_name = "Hashes";
 
 			string cmd_text = $@"CREATE TABLE IF NOT EXISTS `{table_name}` (
-  `[key]` varchar(20) NOT NULL,
+  `SourceKey` varchar(20) NOT NULL,
   `hashMD5` char(32) NOT NULL,
   `hashSHA256` char(64) NOT NULL,
-  PRIMARY KEY (`[key]`),
+  PRIMARY KEY (`SourceKey`),
   UNIQUE KEY `IX_MD5` (`hashMD5`) USING BTREE,
   UNIQUE KEY `IX_SHA256` (`hashSHA256`) USING BTREE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8";
@@ -86,17 +86,17 @@ namespace MyRainbow
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
 				//dbase.Insert(value, hash);
-				cmd.CommandText += $"insert into hashes(`[key]`, hashMD5, hashSHA256)" +
-					$"values(@key{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter});{Environment.NewLine}";
+				cmd.CommandText += $"insert into Hashes(SourceKey, hashMD5, hashSHA256)" +
+					$"values(@sourceKey{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter});{Environment.NewLine}";
 				MySqlParameter param;
-				if (cmd.Parameters.Contains($"@key{param_counter}"))
+				if (cmd.Parameters.Contains($"@sourceKey{param_counter}"))
 				{
-					param = cmd.Parameters[$"@key{param_counter}"];
+					param = cmd.Parameters[$"@sourceKey{param_counter}"];
 					param.Value = key;
 				}
 				else
 				{
-					param = new MySqlParameter($"@key{param_counter}", MySqlDbType.VarChar, 20);
+					param = new MySqlParameter($"@sourceKey{param_counter}", MySqlDbType.VarChar, 20);
 					param.Value = key;
 					cmd.Parameters.Add(param);
 				}
@@ -189,7 +189,7 @@ namespace MyRainbow
 
 		public string GetLastKeyEntry()
 		{
-			using (var cmd = new MySqlCommand("SELECT `[key]` FROM hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
+			using (var cmd = new MySqlCommand("SELECT SourceKey FROM Hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				var str = cmd.ExecuteScalar();
@@ -199,7 +199,7 @@ namespace MyRainbow
 
 		public void Purge()
 		{
-			using (var cmd = new MySqlCommand("truncate table hashes", Conn, Tran))
+			using (var cmd = new MySqlCommand("truncate table Hashes", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				cmd.ExecuteNonQuery();
@@ -208,7 +208,7 @@ namespace MyRainbow
 
 		public void Verify()
 		{
-			using (var cmd = new MySqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
+			using (var cmd = new MySqlCommand("SELECT * FROM Hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 
@@ -219,7 +219,7 @@ namespace MyRainbow
 				{
 					while (rdr.Read())
 					{
-						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["[key]"], rdr["hashMD5"], rdr["hashSHA256"]);
+						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["SourceKey"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
 				}
 			}
