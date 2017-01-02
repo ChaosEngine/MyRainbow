@@ -1,69 +1,60 @@
-﻿using System;
+﻿using MySql.Data.MySqlClient;
+using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace MyRainbow
 {
-	internal class SqlDatabaseHasher : IDbHasher, IDisposable
+	internal class MySqlDatabaseHasher : IDbHasher, IDisposable
 	{
-		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
+		private MySqlConnection Conn { get; set; }
+		private MySqlTransaction Tran { get; set; }
 
-		private SqlConnection Conn { get; set; }
-		private SqlTransaction Tran { get; set; }
-
-		public SqlDatabaseHasher(string connectionString)
+		public MySqlDatabaseHasher(string connectionString)
 		{
-			Conn = new SqlConnection(connectionString);
+			Conn = new MySqlConnection(connectionString);
 			Conn.Open();
 			Tran = null;
 		}
 
-		#region Implementation
-
-		public void Purge()
+		public void Dispose()
 		{
-			using (var cmd = new SqlCommand("truncate table hashes", Conn, Tran))
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing)
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
-				cmd.ExecuteNonQuery();
+				//free managed resources
+				if (Conn != null)
+				{
+					if (Conn.State != ConnectionState.Closed)
+						Conn.Close();
+					Conn.Dispose();
+				}
 			}
+			// free native resources if there are any.
 		}
 
 		public void EnsureExist()
 		{
 			string table_name = "hashes";
 
-			string cmd_text = $@"IF(NOT EXISTS(SELECT *
-                     FROM INFORMATION_SCHEMA.TABLES
-                     WHERE TABLE_SCHEMA = 'dbo'
-                     AND  TABLE_NAME = '{table_name}'))
-                BEGIN
+			string cmd_text = $@"CREATE TABLE IF NOT EXISTS `{table_name}` (
+  `[key]` varchar(20) NOT NULL,
+  `hashMD5` char(32) NOT NULL,
+  `hashSHA256` char(64) NOT NULL,
+  PRIMARY KEY (`[key]`),
+  UNIQUE KEY `IX_MD5` (`hashMD5`) USING BTREE,
+  UNIQUE KEY `IX_SHA256` (`hashSHA256`) USING BTREE
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8";
 
-               CREATE TABLE [dbo].[{table_name}](
-					[key] [varchar](20) NOT NULL,
-					[hashMD5] [char](32) NOT NULL,
-					[hashSHA256] [char](64) NOT NULL,
-				 CONSTRAINT [PK_hashes] PRIMARY KEY CLUSTERED 
-				(
-					[key] ASC
-				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY],
-				 CONSTRAINT [IX_hashMD5] UNIQUE NONCLUSTERED 
-				(
-					[hashMD5] ASC
-				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY],
-				 CONSTRAINT [IX_hashSHA256] UNIQUE NONCLUSTERED 
-				(
-					[hashSHA256] ASC
-				)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = OFF, ALLOW_PAGE_LOCKS = OFF) ON [PRIMARY]
-				) ON [PRIMARY]
-               
-            END";
-
-			using (var cmd = new SqlCommand(cmd_text, Conn, Tran))
+			using (var cmd = new MySqlCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandType = CommandType.Text;
 				cmd.ExecuteNonQuery();
@@ -84,7 +75,7 @@ namespace MyRainbow
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
 			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
-			SqlCommand cmd = new SqlCommand("", Conn, tran);
+			MySqlCommand cmd = new MySqlCommand("", Conn, tran);
 			cmd.CommandType = System.Data.CommandType.Text;
 			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
@@ -95,9 +86,9 @@ namespace MyRainbow
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
 				//dbase.Insert(value, hash);
-				cmd.CommandText += $"insert into hashes([key], hashMD5, hashSHA256)" +
+				cmd.CommandText += $"insert into hashes(`[key]`, hashMD5, hashSHA256)" +
 					$"values(@key{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter});{Environment.NewLine}";
-				SqlParameter param;
+				MySqlParameter param;
 				if (cmd.Parameters.Contains($"@key{param_counter}"))
 				{
 					param = cmd.Parameters[$"@key{param_counter}"];
@@ -105,7 +96,7 @@ namespace MyRainbow
 				}
 				else
 				{
-					param = new SqlParameter($"@key{param_counter}", System.Data.SqlDbType.VarChar, 20);
+					param = new MySqlParameter($"@key{param_counter}", MySqlDbType.VarChar, 20);
 					param.Value = key;
 					cmd.Parameters.Add(param);
 				}
@@ -117,7 +108,7 @@ namespace MyRainbow
 				}
 				else
 				{
-					param = new SqlParameter($"@hashMD5{param_counter}", System.Data.SqlDbType.Char, 32);
+					param = new MySqlParameter($"@hashMD5{param_counter}", MySqlDbType.String, 32);
 					param.Value = hashMD5;
 					cmd.Parameters.Add(param);
 				}
@@ -129,7 +120,7 @@ namespace MyRainbow
 				}
 				else
 				{
-					param = new SqlParameter($"@hashSHA256{param_counter}", System.Data.SqlDbType.Char, 64);
+					param = new MySqlParameter($"@hashSHA256{param_counter}", MySqlDbType.String, 64);
 					param.Value = hashSHA256;
 					cmd.Parameters.Add(param);
 				}
@@ -168,7 +159,7 @@ namespace MyRainbow
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+					cmd.Transaction = tran = Conn.BeginTransaction(IsolationLevel.ReadUncommitted);
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -198,7 +189,7 @@ namespace MyRainbow
 
 		public string GetLastKeyEntry()
 		{
-			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM [test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
+			using (var cmd = new MySqlCommand("SELECT `[key]` FROM hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				var str = cmd.ExecuteScalar();
@@ -206,34 +197,22 @@ namespace MyRainbow
 			}
 		}
 
-		public void Dispose()
+		public void Purge()
 		{
-			Dispose(true);
-			GC.SuppressFinalize(this);
-		}
-
-		protected virtual void Dispose(bool disposing)
-		{
-			if (disposing)
+			using (var cmd = new MySqlCommand("truncate table hashes", Conn, Tran))
 			{
-				//free managed resources
-				if (Conn != null)
-				{
-					if (Conn.State != ConnectionState.Closed)
-						Conn.Close();
-					Conn.Dispose();
-				}
+				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.ExecuteNonQuery();
 			}
-			// free native resources if there are any.
 		}
 
 		public void Verify()
 		{
-			using (var cmd = new SqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
+			using (var cmd = new MySqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 
-				var param_key = new SqlParameter("@hashMD5", System.Data.SqlDbType.Char, 32);
+				var param_key = new MySqlParameter("@hashMD5", MySqlDbType.String, 32);
 				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
 				cmd.Parameters.Add(param_key);
 				using (var rdr = cmd.ExecuteReader())
@@ -245,6 +224,5 @@ namespace MyRainbow
 				}
 			}
 		}
-		#endregion Implementation
 	}
 }
