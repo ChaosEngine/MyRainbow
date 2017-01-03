@@ -75,8 +75,11 @@ namespace MyRainbow
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
 			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+			string insert_into = "INSERT INTO Hashes(SourceKey, hashMD5, hashSHA256) VALUES";
 			MySqlCommand cmd = new MySqlCommand("", Conn, tran);
 			cmd.CommandType = System.Data.CommandType.Text;
+			cmd.CommandText = insert_into;
+			string comma = "";
 			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
@@ -86,8 +89,8 @@ namespace MyRainbow
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
 				//dbase.Insert(value, hash);
-				cmd.CommandText += $"insert into Hashes(SourceKey, hashMD5, hashSHA256)" +
-					$"values(@sourceKey{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter});{Environment.NewLine}";
+				cmd.CommandText += $"{comma}(@sourceKey{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter}){Environment.NewLine}";
+				comma = ",";
 				MySqlParameter param;
 				if (cmd.Parameters.Contains($"@sourceKey{param_counter}"))
 				{
@@ -129,26 +132,28 @@ namespace MyRainbow
 
 				if (counter % batchInsertCount == 0)
 				{
-					//cmd.Prepare();
+					cmd.CommandText += ";";
 					cmd.ExecuteNonQuery();
 					cmd.Dispose();
-					cmd.CommandText = "";
+					cmd.CommandText = insert_into;
 					cmd.Connection = Conn;
 					cmd.Transaction = tran;
 					param_counter = 0;
+					comma = "";
 				}
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
-					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
+					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 					{
-						//cmd.Prepare();
+						cmd.CommandText += ";";
 						cmd.ExecuteNonQuery();
 						cmd.Dispose();
-						cmd.CommandText = "";
+						cmd.CommandText = insert_into;
 						cmd.Connection = Conn;
 						cmd.Transaction = tran;
 						param_counter = 0;
+						comma = "";
 					}
 					tran.Commit(); tran.Dispose();
 					tran = null;
@@ -175,9 +180,9 @@ namespace MyRainbow
 				counter++;
 			}
 
-			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
+			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 			{
-				//cmd.Prepare();
+				cmd.CommandText += ";";
 				cmd.ExecuteNonQuery();
 				cmd.Dispose();
 			}
