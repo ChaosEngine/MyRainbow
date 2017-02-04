@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -10,22 +12,50 @@ using System.Threading.Tasks;
 
 namespace MyRainbow
 {
-	public class Program
+	public class HashCreator
 	{
-		static string GetParamFromCmdSecretOrEnv(string[] args, string configParam = "SqlConnection")
+		private IConfiguration Configuration { get; set; }
+
+		/*private Dictionary<string, string> GetSwitchMappings(IReadOnlyDictionary<string, string> configurationStrings)
 		{
+			return configurationStrings.Select(item =>
+				new KeyValuePair<string, string>(
+					"-" + item.Key.Substring(item.Key.LastIndexOf(':') + 1),
+					item.Key))
+					.ToDictionary(
+						item => item.Key, item => item.Value);
+		}*/
+
+		public void SetupConfiguration(string[] args)
+		{
+			/*var opt_dict = new Dictionary<string, string>
+			{
+				{ "aaSqlConnection", "Rick" },
+				{ "zzzMySQL", "11" },
+				{ "zzzRedis", "blah" },
+				{ "zzzMongoDB", "buuu" },
+				{ "zzCassandra", "cass" },
+				{ "zzzDBKind", "unknown" }
+			};*/
+
 			var builder = new ConfigurationBuilder()
 			  // For more details on using the user secret store see http://go.microsoft.com/fwlink/?LinkID=532709
 			  .AddUserSecrets()
 			  .AddEnvironmentVariables()
-			  .AddCommandLine(args);
+			  //.AddInMemoryCollection(opt_dict)
+			  .AddCommandLine(args/*, GetSwitchMappings(opt_dict)*/);
 			var configuration = builder.Build();
 
-			string conn_str = configuration[configParam];
+			Configuration = configuration;
+		}
+
+		private string GetParamFromCmdSecretOrEnv(string configParam = "SqlConnection")
+		{
+			string conn_str = Configuration[configParam];
 			return conn_str;
 		}
 
-		internal static void SqlServerExample(string[] args)
+		internal void SqlServerExample()
 		{
 			MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
 
@@ -39,7 +69,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv(args, "SqlConnection")))
+			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv("SqlConnection")))
 			{
 				dbase.EnsureExist();
 				//dbase.Purge();
@@ -62,7 +92,7 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		internal static void RedisExample(string[] args)
+		internal void RedisExample()
 		{
 			MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
 
@@ -76,7 +106,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var redis = new RedisHasher(GetParamFromCmdSecretOrEnv(args, "Redis")))
+			using (var redis = new RedisHasher(GetParamFromCmdSecretOrEnv("Redis")))
 			{
 				redis.EnsureExist();
 				redis.Purge();
@@ -99,7 +129,7 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		internal static void MongoDBExample(string[] args)
+		internal void MongoDBExample()
 		{
 			MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
 
@@ -113,7 +143,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var dbase = new MongoDBHasher(GetParamFromCmdSecretOrEnv(args, "MongoDB")))
+			using (var dbase = new MongoDBHasher(GetParamFromCmdSecretOrEnv("MongoDB")))
 			{
 				dbase.EnsureExist();
 				//dbase.Purge();
@@ -136,7 +166,7 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		internal static void CassandraExample(string[] args)
+		internal void CassandraExample()
 		{
 			MyCartesian cart = new MyCartesian(3, "abcdefghijklmopqrstuvwxyz");
 
@@ -150,7 +180,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var dbase = new CassandraDBHasher(GetParamFromCmdSecretOrEnv(args, "Cassandra")))
+			using (var dbase = new CassandraDBHasher(GetParamFromCmdSecretOrEnv("Cassandra")))
 			{
 				dbase.EnsureExist();
 				//dbase.Purge();
@@ -173,7 +203,7 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		internal static void MySqlExample(string[] args)
+		internal void MySqlExample()
 		{
 			MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
 
@@ -187,7 +217,7 @@ namespace MyRainbow
 			var hasherSHA256 = SHA256.Create();
 			var stopwatch = new Stopwatch();
 
-			using (var dbase = new MySqlDatabaseHasher(GetParamFromCmdSecretOrEnv(args, "MySQL")))
+			using (var dbase = new MySqlDatabaseHasher(GetParamFromCmdSecretOrEnv("MySQL")))
 			{
 				dbase.EnsureExist();
 				//dbase.Purge();
@@ -210,13 +240,60 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		public static void Main(string[] args)
+		internal void Exeute()
 		{
-			//SqlServerExample(args);
-			MySqlExample(args);
-			//RedisExample(args);
-			//MongoDBExample(args);
-			//CassandraExample(args);
+			var db_kind = GetParamFromCmdSecretOrEnv("DBKind");
+
+			switch (db_kind?.Trim()?.ToLower())
+			{
+				case "sqlserver":
+				case "mssql":
+					SqlServerExample();
+					break;
+
+				case "mysql":
+				case "mariadb":
+				case "maria":
+					MySqlExample();
+					break;
+
+				case "redis":
+					RedisExample();
+					break;
+
+				case "mongo":
+				case "mongodb":
+					MongoDBExample();
+					break;
+
+				case "cassandra":
+				case "cassandradb":
+					CassandraExample();
+					break;
+
+				default:
+					throw new NotSupportedException($"Unknown DBKind {db_kind}");
+			}
+		}
+	}
+
+	public class Program
+	{
+		public static int Main(string[] args)
+		{
+			try
+			{
+				HashCreator hc = new HashCreator();
+				hc.SetupConfiguration(args);
+				hc.Exeute();
+
+				return 0;
+			}
+			catch (Exception ex)
+			{
+				Console.Error.WriteLineAsync(ex.Message + Environment.NewLine + ex.StackTrace);
+				return 1;
+			}
 		}
 	}
 }
