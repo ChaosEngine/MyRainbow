@@ -1,14 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
-using System.Data.SqlClient;
 using System.Diagnostics;
-using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace MyRainbow
 {
@@ -36,11 +30,11 @@ namespace MyRainbow
 
 		private T GetParamFromCmdSecretOrEnv<T>(string configParam = "SqlConnection")
 		{
-			string conn_str = Configuration[configParam];
-			if (conn_str == null)
+			string from = Configuration[configParam];
+			if (from == null)
 				return default(T);
 
-			return (T)Convert.ChangeType(conn_str, typeof(T));
+			return TConverter.ChangeType<T>(from);
 		}
 
 		internal void SqlServerExample()
@@ -60,7 +54,7 @@ namespace MyRainbow
 			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("SqlConnection")))
 			{
 				dbase.EnsureExist();
-				if(_purge)
+				if (_purge)
 					dbase.Purge();
 
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
