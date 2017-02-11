@@ -227,6 +227,44 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
+		internal void SqlLiteExample()
+		{
+			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
+
+			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
+				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
+				$"Combination count = {cart.CombinationCount}");
+
+			var table_of_table_of_chars = cart.Generate2();
+			Console.WriteLine("Keys generated");
+			var hasherMD5 = MD5.Create();
+			var hasherSHA256 = SHA256.Create();
+			var stopwatch = new Stopwatch();*/
+
+			using (var dbase = new SqliteHasher(GetParamFromCmdSecretOrEnv<string>("Sqlite")))
+			{
+				dbase.EnsureExist();
+				if (_purge)
+					dbase.Purge();
+
+				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
+					(key, hashMD5, hashSHA256, counter, tps) =>
+					{
+						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+						if (Console.KeyAvailable)
+							return true;
+						return false;
+					}, _stopwatch);
+
+				_stopwatch.Stop();
+
+				dbase.Verify();
+			}
+
+			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
+			Console.ReadKey();
+		}
+
 		internal void Exeute()
 		{
 			var db_kind = GetParamFromCmdSecretOrEnv<string>("DBKind");
@@ -274,6 +312,11 @@ namespace MyRainbow
 				case "casandra":
 				case "cassandradb":
 					CassandraExample();
+					break;
+
+				case "sqlite":
+				case "lite":
+					SqlLiteExample();
 					break;
 
 				default:
