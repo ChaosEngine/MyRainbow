@@ -16,6 +16,10 @@ namespace MyRainbow
 
 		private IConfiguration Configuration { get; set; }
 
+		public HashCreator()
+		{
+		}
+
 		public void SetupConfiguration(string[] args)
 		{
 			var builder = new ConfigurationBuilder()
@@ -265,27 +269,40 @@ namespace MyRainbow
 			Console.ReadKey();
 		}
 
-		internal void Exeute()
+		internal int Exeute()
 		{
-			var db_kind = GetParamFromCmdSecretOrEnv<string>("DBKind");
-			var alphabet = GetParamFromCmdSecretOrEnv<string>("alphabet") ?? "abcdefghijklmopqrstuvwxyz";
-			var length = GetParamFromCmdSecretOrEnv<int?>("length") ?? 3;
-			_purge = GetParamFromCmdSecretOrEnv<bool?>("purge") ?? false;
+			string db_kind;
+			try
+			{
+				db_kind = GetParamFromCmdSecretOrEnv<string>("DBKind");
+				var alphabet = GetParamFromCmdSecretOrEnv<string>("alphabet") ?? "abcdefghijklmopqrstuvwxyz";
+				var length = GetParamFromCmdSecretOrEnv<int?>("length") ?? 5;
+				_purge = GetParamFromCmdSecretOrEnv<bool?>("purge") ?? false;
 
-			MyCartesian cart = new MyCartesian(/*5*/length, /*"abcdefghijklmopqrstuvwxyz"*/alphabet);
+				MyCartesian cart = new MyCartesian(/*5*/length, /*"abcdefghijklmopqrstuvwxyz"*/alphabet);
 
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
+				Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
+					$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
+					$"Combination count = {cart.CombinationCount}{Environment.NewLine}" +
+					$"DBKind = {db_kind.Trim().ToLower()}{Environment.NewLine}");
 
-			_tableOfTableOfChars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			_hasherMD5 = MD5.Create();
-			_hasherSHA256 = SHA256.Create();
-			_stopwatch = new Stopwatch();
+				_tableOfTableOfChars = cart.Generate2();
+				Console.WriteLine("Keys generated");
+				_hasherMD5 = MD5.Create();
+				_hasherSHA256 = SHA256.Create();
+				_stopwatch = new Stopwatch();
+			}
+			catch (Exception)
+			{
+				Console.Error.WriteLineAsync($@"{Environment.NewLine}{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]{Environment.NewLine} \
+/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}");
+				throw;
+			}
 
 
-
+			/*
+			 * TODO: print DB configuration used
+			 * */
 			switch (db_kind?.Trim()?.ToLower())
 			{
 				case "sqlserver":
@@ -322,6 +339,8 @@ namespace MyRainbow
 				default:
 					throw new NotSupportedException($"Unknown DBKind {db_kind}");
 			}
+
+			return 0;
 		}
 	}
 
@@ -333,9 +352,7 @@ namespace MyRainbow
 			{
 				HashCreator hc = new HashCreator();
 				hc.SetupConfiguration(args);
-				hc.Exeute();
-
-				return 0;
+				return hc.Exeute();
 			}
 			catch (Exception ex)
 			{
