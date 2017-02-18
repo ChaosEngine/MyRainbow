@@ -294,8 +294,9 @@ namespace MyRainbow
 			}
 			catch (Exception)
 			{
-				Console.Error.WriteLineAsync($@"{Environment.NewLine}{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]{Environment.NewLine} \
-/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}");
+				Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
+					+ $@"/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}"
+					+ $@"/SqlConnection='...' or /MySQL='...' or /[other db connection]='...'");
 				throw;
 			}
 
