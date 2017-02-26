@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace MyRainbow
 {
-	public class CassandraDBHasher : IDbHasher, IDisposable
+	internal class CassandraDBHasher : DbHasher, IDisposable
 	{
 		private Cluster Cache { get; set; }
 
@@ -43,7 +43,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			ISession session = Cache.Connect("test");
 			//session.CreateKeyspaceIfNotExists("test");
@@ -80,7 +80,7 @@ namespace MyRainbow
 			//Console.WriteLine("{0} {1} {2}", result["key"], result["md5"], result["sha256"]);
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
@@ -145,7 +145,7 @@ namespace MyRainbow
 			}
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			ISession session = Cache.Connect("test");
 			Row result = session.Execute("SELECT * FROM hashes ORDER BY id DESC limit 1").First();
@@ -154,14 +154,14 @@ namespace MyRainbow
 			return null;
 		}
 
-		public void Purge()
+		public override void Purge()
 		{
 			ISession session = Cache.Connect("test");
 			// Delete Bob, then try to read all users and print them to the console
 			session.Execute("TRUNCATE TABLE hashes");
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			//TODO: implement
 		}

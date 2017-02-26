@@ -8,7 +8,7 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class MySqlDatabaseHasher : IDbHasher, IDisposable
+	internal class MySqlDatabaseHasher : DbHasher, IDisposable
 	{
 		private MySqlConnection Conn { get; set; }
 		private MySqlTransaction Tran { get; set; }
@@ -41,7 +41,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			string table_name = "Hashes";
 
@@ -61,7 +61,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
@@ -192,7 +192,7 @@ namespace MyRainbow
 			}
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			using (var cmd = new MySqlCommand("SELECT SourceKey FROM Hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
@@ -202,7 +202,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Purge()
+		public override void Purge()
 		{
 			using (var cmd = new MySqlCommand("truncate table Hashes", Conn, Tran))
 			{
@@ -211,7 +211,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			using (var cmd = new MySqlCommand("SELECT * FROM Hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{

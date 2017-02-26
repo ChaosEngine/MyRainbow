@@ -7,7 +7,7 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class RedisHasher : IDbHasher, IDisposable
+	internal class RedisHasher : DbHasher, IDisposable
 	{
 		private ConnectionMultiplexer Cache { get; set; }
 
@@ -44,7 +44,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			var key = "myKey";
 			var message = "Hello, World!";
@@ -69,7 +69,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 2000/*0*/)
 		{
@@ -114,19 +114,19 @@ namespace MyRainbow
 			}//end foreach
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			var dbase = Cache.GetDatabase();
 
 			var r_val = dbase.StringGet("MD5_" + "9409135542c79d1ed50c9fde07fa600a");
 		}
 
-		public void Purge()
+		public override void Purge()
 		{
 			//Cache.GetDatabase().remove
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			throw new NotImplementedException();
 		}

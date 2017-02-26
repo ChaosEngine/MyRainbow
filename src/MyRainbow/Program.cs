@@ -43,230 +43,182 @@ namespace MyRainbow
 
 		internal void SqlServerExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("SqlConnection")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal void RedisExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new RedisHasher(GetParamFromCmdSecretOrEnv<string>("Redis")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal void MongoDBExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new MongoDBHasher(GetParamFromCmdSecretOrEnv<string>("MongoDB")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal void CassandraExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new CassandraDBHasher(GetParamFromCmdSecretOrEnv<string>("Cassandra")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal void MySqlExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new MySqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("MySQL")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal void SqlLiteExample()
 		{
-			/*MyCartesian cart = new MyCartesian(5, "abcdefghijklmopqrstuvwxyz");
-
-			Console.WriteLine($"Alphabet = {cart.Alphabet}{Environment.NewLine}" +
-				$"AlphabetPower = {cart.AlphabetPower}{Environment.NewLine}Length = {cart.Length}{Environment.NewLine}" +
-				$"Combination count = {cart.CombinationCount}");
-
-			var table_of_table_of_chars = cart.Generate2();
-			Console.WriteLine("Keys generated");
-			var hasherMD5 = MD5.Create();
-			var hasherSHA256 = SHA256.Create();
-			var stopwatch = new Stopwatch();*/
-
 			using (var dbase = new SqliteHasher(GetParamFromCmdSecretOrEnv<string>("Sqlite")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
 					dbase.Purge();
 
+				bool interrupted = false;
+
 				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
 					(key, hashMD5, hashSHA256, counter, tps) =>
 					{
 						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
 						if (Console.KeyAvailable)
+						{
+							interrupted = true;
 							return true;
+						}
 						return false;
 					}, _stopwatch);
 
 				_stopwatch.Stop();
 
+				if (!interrupted)
+					dbase.PostGenerateExecute();
 				dbase.Verify();
 			}
-
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			Console.ReadKey();
 		}
 
 		internal int Exeute()
@@ -301,9 +253,6 @@ namespace MyRainbow
 			}
 
 
-			/*
-			 * TODO: print DB configuration used
-			 * */
 			switch (db_kind?.Trim()?.ToLower())
 			{
 				case "sqlserver":
@@ -340,6 +289,9 @@ namespace MyRainbow
 				default:
 					throw new NotSupportedException($"Unknown DBKind {db_kind}");
 			}
+
+			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
+			//Console.ReadKey();
 
 			return 0;
 		}

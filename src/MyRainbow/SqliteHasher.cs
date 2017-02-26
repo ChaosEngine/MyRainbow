@@ -8,7 +8,7 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class SqliteHasher : IDbHasher, IDisposable
+	internal class SqliteHasher : DbHasher, IDisposable
 	{
 		private SqliteConnection Conn { get; set; }
 		private SqliteTransaction Tran { get; set; }
@@ -41,7 +41,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			string table_name = "hashes";
 
@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, 
 			Stopwatch stopwatch = null, int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
@@ -187,7 +187,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 			}
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			using (var cmd = new SqliteCommand("SELECT [key] FROM hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
@@ -197,7 +197,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 			}
 		}
 
-		public void Purge()
+		public override void Purge()
 		{
 			using (var cmd = new SqliteCommand("DELETE FROM hashes", Conn, Tran))
 			{
@@ -206,7 +206,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 			}
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			using (var cmd = new SqliteCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{

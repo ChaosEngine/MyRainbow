@@ -5,7 +5,7 @@
 	},
 
     "dependencies": {
-        "CassandraCSharpDriver": "3.2.0",
+        "CassandraCSharpDriver": "3.2.1",
         "Microsoft.AspNet.DataProtection": "1.0.0-rc1-final",
         "Microsoft.AspNetCore.DataProtection": "1.1.0",
         "Microsoft.Data.Sqlite": "1.1.0",
@@ -19,7 +19,7 @@
         "MongoDB.Driver": "2.4.2",
         "MySql.Data.EntityFrameworkCore": "7.0.6-IR31",
         "Npgsql.EntityFrameworkCore.PostgreSQL": "1.1.0",
-        "StackExchange.Redis": "1.2.0",
+        "StackExchange.Redis": "1.2.1",
         "System.Collections.Immutable": "1.3.1",
         "System.Linq.Parallel": "4.3.0"
     },

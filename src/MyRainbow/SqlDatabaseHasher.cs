@@ -8,7 +8,7 @@ using System.Text;
 
 namespace MyRainbow
 {
-	internal class SqlDatabaseHasher : IDbHasher, IDisposable
+	internal class SqlDatabaseHasher : DbHasher, IDisposable
 	{
 		//private readonly string _connectionString = "Server=chaos2;MultipleActiveResultSets=True;Initial Catalog=test;User ID=test;Password=XXXXXXXXX;";
 
@@ -24,7 +24,7 @@ namespace MyRainbow
 
 		#region Implementation
 
-		public void Purge()
+		public override void Purge()
 		{
 			using (var cmd = new SqlCommand("truncate table hashes", Conn, Tran))
 			{
@@ -33,7 +33,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			string table_name = "hashes";
 
@@ -70,7 +70,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
@@ -196,7 +196,7 @@ namespace MyRainbow
 			}
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM [test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
 			{
@@ -227,7 +227,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			using (var cmd = new SqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
@@ -245,6 +245,31 @@ namespace MyRainbow
 				}
 			}
 		}
+
+		public override void PostGenerateExecute()
+		{
+			string cmd_text = $@"
+			IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = 'IX_MD5' AND object_id = OBJECT_ID('hashes'))
+			BEGIN
+				CREATE NONCLUSTERED INDEX [IX_MD5] ON [dbo].[hashes]([hashMD5] ASC)
+				INCLUDE ([hashSHA256]) WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+			END
+			IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = 'IX_SHA256' AND object_id = OBJECT_ID('hashes'))
+			BEGIN
+				CREATE NONCLUSTERED INDEX[IX_SHA256] ON [dbo].[hashes]([hashSHA256] ASC)
+				INCLUDE([hashMD5]) WITH(PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON[PRIMARY]
+			END";
+
+			Console.Write("Creating indexes...");
+			using (var cmd = new SqlCommand(cmd_text, Conn, Tran))
+			{
+				cmd.CommandTimeout = 0;
+				cmd.CommandType = CommandType.Text;
+				cmd.ExecuteNonQuery();
+			}
+			Console.WriteLine("done");
+		}
+
 		#endregion Implementation
 	}
 }

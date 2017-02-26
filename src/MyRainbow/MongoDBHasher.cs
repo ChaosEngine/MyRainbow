@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace MyRainbow
 {
-	internal class MongoDBHasher : IDbHasher, IDisposable
+	internal class MongoDBHasher : DbHasher, IDisposable
 	{
 		private MongoClient Cache { get; set; }
 
@@ -45,7 +45,7 @@ namespace MyRainbow
 			// free native resources if there are any.
 		}
 
-		public void EnsureExist()
+		public override void EnsureExist()
 		{
 			var database = Cache.GetDatabase("test");
 			var collection = database.GetCollection<BsonDocument>("hashes");
@@ -68,7 +68,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
@@ -144,7 +144,7 @@ namespace MyRainbow
 			}
 		}
 
-		public void Verify()
+		public override void Verify()
 		{
 			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
@@ -184,12 +184,12 @@ namespace MyRainbow
 			return str;
 		}
 
-		public string GetLastKeyEntry()
+		public override string GetLastKeyEntry()
 		{
 			return GetLastKeyEntryAsync().Result;
 		}
 
-		public void Purge()
+		public override void Purge()
 		{
 			var dbase = Cache.GetDatabase("test");
 			dbase.GetCollection<BsonDocument>("hashes").DeleteManyAsync(new BsonDocument()).Wait();
