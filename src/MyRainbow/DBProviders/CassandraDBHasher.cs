@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MyRainbow
+namespace MyRainbow.DBProviders
 {
 	internal class CassandraDBHasher : DbHasher, IDisposable
 	{

@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MyRainbow
+namespace MyRainbow.DBProviders
 {
 	internal class MySqlDatabaseHasher : DbHasher, IDisposable
 	{
