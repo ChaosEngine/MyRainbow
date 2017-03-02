@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -227,6 +228,43 @@ namespace MyRainbow.DBProviders
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["SourceKey"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
 				}
+			}
+		}
+
+		public override void PostGenerateExecute()
+		{
+			string table_name = "Hashes";
+
+			string database = Conn.ConnectionString.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+				.ToList().FirstOrDefault(x => x.ToLower().StartsWith("database"))
+				.Split(new char[] { '=' }, StringSplitOptions.RemoveEmptyEntries)[1].Trim();
+
+			string cmd_text = $@"
+select if (
+    exists(
+        select distinct index_name from information_schema.statistics where table_schema = '{database}' and table_name = '{table_name}' and index_name like 'IX_MD5'
+)
+    ,'select ''index IX_MD5 exists'' _______;'
+    ,'create index IX_MD5 on {table_name}(`hashMD5`)') into @txt;
+PREPARE stmt1 FROM @txt;
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+
+select if (
+    exists(
+        select distinct index_name from information_schema.statistics where table_schema = '{database}' and table_name = '{table_name}' and index_name like 'IX_SHA256'
+)
+    ,'select ''index IX_SHA256 exists'' _______;'
+    ,'create index IX_SHA256 on {table_name}(`hashSHA256`)') into @txt;
+PREPARE stmt1 FROM @txt;
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;";
+
+			using (var cmd = new MySqlCommand(cmd_text, Conn, Tran))
+			{
+				cmd.CommandTimeout = 0;
+				cmd.CommandType = CommandType.Text;
+				cmd.ExecuteNonQuery();
 			}
 		}
 	}
