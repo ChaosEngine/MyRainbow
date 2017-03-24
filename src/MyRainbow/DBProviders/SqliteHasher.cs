@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 
 		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, 
-			Stopwatch stopwatch = null, int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
+			Stopwatch stopwatch = null, int batchInsertCount = 50, int batchTransactionCommitCount = 200)
 		{
 			string last_key_entry = GetLastKeyEntry();
 
@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 			long counter = 0, last_pause_counter = 0, tps = 0;
 			var tran = Conn.BeginTransaction();
 			SqliteCommand cmd = new SqliteCommand("", Conn, tran);
-			cmd.CommandType = System.Data.CommandType.Text;
+			cmd.CommandType = CommandType.Text;
 			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
@@ -87,7 +87,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"insert into hashes([key], hashMD5, hashSHA256)" +
-					$"values(@key{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter});{Environment.NewLine}";
+					$"values(@key{param_counter}, @MD5{param_counter}, @SHA256{param_counter});{Environment.NewLine}";
 				SqliteParameter param;
 				if (cmd.Parameters.Contains($"@key{param_counter}"))
 				{
@@ -101,26 +101,26 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 					cmd.Parameters.Add(param);
 				}
 
-				if (cmd.Parameters.Contains($"@hashMD5{param_counter}"))
+				if (cmd.Parameters.Contains($"@MD5{param_counter}"))
 				{
-					param = cmd.Parameters[$"@hashMD5{param_counter}"];
+					param = cmd.Parameters[$"@MD5{param_counter}"];
 					param.Value = hashMD5;
 				}
 				else
 				{
-					param = new SqliteParameter($"@hashMD5{param_counter}", SqliteType.Text, 32);
+					param = new SqliteParameter($"@MD5{param_counter}", SqliteType.Text, 32);
 					param.Value = hashMD5;
 					cmd.Parameters.Add(param);
 				}
 
-				if (cmd.Parameters.Contains($"@hashSHA256{param_counter}"))
+				if (cmd.Parameters.Contains($"@SHA256{param_counter}"))
 				{
-					param = cmd.Parameters[$"@hashSHA256{param_counter}"];
+					param = cmd.Parameters[$"@SHA256{param_counter}"];
 					param.Value = hashSHA256;
 				}
 				else
 				{
-					param = new SqliteParameter($"@hashSHA256{param_counter}", SqliteType.Text, 64);
+					param = new SqliteParameter($"@SHA256{param_counter}", SqliteType.Text, 64);
 					param.Value = hashSHA256;
 					cmd.Parameters.Add(param);
 				}
@@ -219,7 +219,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 				{
 					while (rdr.Read())
 					{
-						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["SourceKey"], rdr["hashMD5"], rdr["hashSHA256"]);
+						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
 				}
 			}

@@ -241,60 +241,64 @@ namespace MyRainbow
 
 				_tableOfTableOfChars = cart.Generate2();
 				Console.WriteLine("Keys generated");
-				_hasherMD5 = MD5.Create();
-				_hasherSHA256 = SHA256.Create();
-				_stopwatch = new Stopwatch();
+
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
 				Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
 					+ $@"/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}"
 					+ $@"/SqlConnection='...' or /MySQL='...' or /[other db connection]='...'");
-				throw;
+				Console.ReadKey();
+				throw ex;
 			}
-
-
-			switch (db_kind?.Trim()?.ToLower())
+			using (_hasherMD5 = MD5.Create())
+			using (_hasherSHA256 = SHA256.Create())
 			{
-				case "sqlserver":
-				case "mssql":
-					SqlServerExample();
-					break;
+				_stopwatch = new Stopwatch();
 
-				case "mysql":
-				case "mariadb":
-				case "maria":
-					MySqlExample();
-					break;
 
-				case "redis":
-					RedisExample();
-					break;
+				switch (db_kind?.Trim()?.ToLower())
+				{
+					case "sqlserver":
+					case "mssql":
+						SqlServerExample();
+						break;
 
-				case "mongo":
-				case "mongodb":
-					MongoDBExample();
-					break;
+					case "mysql":
+					case "mariadb":
+					case "maria":
+						MySqlExample();
+						break;
 
-				case "cassandra":
-				case "casandra":
-				case "cassandradb":
-					CassandraExample();
-					break;
+					case "redis":
+						RedisExample();
+						break;
 
-				case "sqlite":
-				case "lite":
-					SqlLiteExample();
-					break;
+					case "mongo":
+					case "mongodb":
+						MongoDBExample();
+						break;
 
-				default:
-					throw new NotSupportedException($"Unknown DBKind {db_kind}");
-			}
+					case "cassandra":
+					case "casandra":
+					case "cassandradb":
+						CassandraExample();
+						break;
 
-			Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-			//Console.ReadKey();
+					case "sqlite":
+					case "lite":
+						SqlLiteExample();
+						break;
 
-			return 0;
+					default:
+						throw new NotSupportedException($"Unknown DBKind {db_kind}");
+				}
+
+				Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
+				//Console.ReadKey();
+
+				return 0;
+			}//end using(s)
 		}
 	}
 
