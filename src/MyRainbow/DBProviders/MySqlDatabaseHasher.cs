@@ -260,12 +260,14 @@ PREPARE stmt1 FROM @txt;
 EXECUTE stmt1;
 DEALLOCATE PREPARE stmt1;";
 
+			Console.Write("Creating indexes...");
 			using (var cmd = new MySqlCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
 				cmd.ExecuteNonQuery();
 			}
+			Console.WriteLine("done");
 		}
 	}
 }
