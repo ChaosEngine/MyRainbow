@@ -25,7 +25,7 @@ namespace MyRainbow
 		{
 			var builder = new ConfigurationBuilder()
 			  // For more details on using the user secret store see http://go.microsoft.com/fwlink/?LinkID=532709
-			  .AddUserSecrets()
+			  .AddUserSecrets<HashCreator>()
 			  .AddEnvironmentVariables()
 			  .AddCommandLine(args);
 
