@@ -19,4 +19,4 @@ using System.Runtime.InteropServices;
 // The following GUID is for the ID of the typelib if this project is exposed to COM
 [assembly: Guid("af10776c-5b7c-4962-9c1e-3c57c5258fc9")]
 
-[assembly: UserSecretsId("aspnet-MyRainbow-20161203120550")]
+//[assembly: UserSecretsId("aspnet-MyRainbow-20161203120550")]
