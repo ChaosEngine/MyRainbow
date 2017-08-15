@@ -1,11 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.14
+VisualStudioVersion = 15.0.26730.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A2350619-D01C-4023-A8CC-9376C233EDC4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A229BD99-D571-451D-8773-2342049B3876}"
+	ProjectSection(SolutionItems) = preProject
+		global.json = global.json
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyRainbow", "src\MyRainbow\MyRainbow.csproj", "{AF10776C-5B7C-4962-9C1E-3C57C5258FC9}"
 EndProject
@@ -25,5 +28,8 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AF10776C-5B7C-4962-9C1E-3C57C5258FC9} = {A2350619-D01C-4023-A8CC-9376C233EDC4}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1B9C4E20-2F36-4D19-9983-2D93FFA3A6C0}
 	EndGlobalSection
 EndGlobal
