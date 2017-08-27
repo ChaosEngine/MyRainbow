@@ -49,10 +49,10 @@ namespace MyRainbow.DBProviders
   [key] varchar(20) NOT NULL PRIMARY KEY,
   hashMD5 char(32) NOT NULL,
   hashSHA256 char(64) NOT NULL
- );
+ );"/* +
+$@"
 CREATE INDEX IF NOT EXISTS IX_MD5 ON {table_name}(hashMD5);
-CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
-";
+CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 
 			using (var cmd = new SqliteCommand(cmd_text, Conn, Tran))
 			{
@@ -223,6 +223,24 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);
 					}
 				}
 			}
+		}
+
+		public override void PostGenerateExecute()
+		{
+			string table_name = "hashes";
+
+			string cmd_text = $@"
+				CREATE INDEX IF NOT EXISTS IX_MD5 ON {table_name}(hashMD5);
+				CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);";
+
+			Console.Write("Creating indexes...");
+			using (var cmd = new SqliteCommand(cmd_text, Conn, Tran))
+			{
+				cmd.CommandTimeout = 0;
+				cmd.CommandType = CommandType.Text;
+				cmd.ExecuteNonQuery();
+			}
+			Console.WriteLine("done");
 		}
 	}
 }

@@ -198,7 +198,7 @@ namespace MyRainbow.DBProviders
 
 		public override string GetLastKeyEntry()
 		{
-			using (var cmd = new SqlCommand("SELECT TOP (1)[key] FROM [test].[dbo].[hashes] ORDER BY 1 desc", Conn, Tran))
+			using (var cmd = new SqlCommand("SELECT TOP (1) [key] FROM [hashes] ORDER BY 1 desc", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
 				var str = cmd.ExecuteScalar();
