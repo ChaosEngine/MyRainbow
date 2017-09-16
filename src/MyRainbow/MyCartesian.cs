@@ -56,26 +56,4 @@ namespace MyRainbow
 			return result;
 		}
 	}
-
-	public class Candidate
-	{
-		private string key;
-		private string hash;
-
-		public string Key
-		{
-			get { return key; }
-			set { key = value; }
-		}
-
-		public string Hash
-		{
-			get { return hash; }
-			set { hash = value; }
-		}
-	}
-
-	public class Candidates : List<Candidate>
-	{
-	}
 }
