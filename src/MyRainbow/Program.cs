@@ -192,6 +192,35 @@ namespace MyRainbow
 			}
 		}
 
+		internal void PostgreSqlExample()
+		{
+			using (var dbase = new PostgreSqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("PostgreSql")))
+			{
+				dbase.EnsureExist();
+				if (_purge)
+					dbase.Purge();
+
+				bool interrupted = false;
+
+				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
+					(key, hashMD5, hashSHA256, counter, tps) =>
+					{
+						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+						if (Console.KeyAvailable)
+						{
+							interrupted = true;
+							return true;
+						}
+						return false;
+					}, _stopwatch);
+
+				_stopwatch.Stop();
+
+				if (!interrupted)
+					dbase.PostGenerateExecute();
+				dbase.Verify();
+			}
+		}
 		internal void SqlLiteExample()
 		{
 			using (var dbase = new SqliteHasher(GetParamFromCmdSecretOrEnv<string>("Sqlite")))
@@ -288,6 +317,13 @@ namespace MyRainbow
 					case "sqlite":
 					case "lite":
 						SqlLiteExample();
+						break;
+
+					case "psql":
+					case "npsql":
+					case "postgres":
+					case "postgresql":
+						PostgreSqlExample();
 						break;
 
 					default:
