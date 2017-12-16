@@ -144,6 +144,7 @@ namespace MyRainbow.DBProviders
 				{
 					cmd.CommandText += ";";
 					cmd.ExecuteNonQuery();
+					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd = new MySqlCommand("", Conn, tran);
 					cmd.CommandType = System.Data.CommandType.Text;
@@ -160,6 +161,7 @@ namespace MyRainbow.DBProviders
 					{
 						cmd.CommandText += ";";
 						cmd.ExecuteNonQuery();
+						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd = new MySqlCommand("", Conn, tran);
 						cmd.CommandType = System.Data.CommandType.Text;
@@ -198,6 +200,7 @@ namespace MyRainbow.DBProviders
 			{
 				cmd.CommandText += ";";
 				cmd.ExecuteNonQuery();
+				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)

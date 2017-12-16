@@ -140,6 +140,7 @@ namespace MyRainbow.DBProviders
 				{
 					//cmd.Prepare();
 					cmd.ExecuteNonQuery();
+					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd.CommandText = "";
 					cmd.Connection = Conn;
@@ -153,6 +154,7 @@ namespace MyRainbow.DBProviders
 					{
 						//cmd.Prepare();
 						cmd.ExecuteNonQuery();
+						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd.CommandText = "";
 						cmd.Connection = Conn;
@@ -188,6 +190,7 @@ namespace MyRainbow.DBProviders
 			{
 				//cmd.Prepare();
 				cmd.ExecuteNonQuery();
+				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)

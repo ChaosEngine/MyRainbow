@@ -112,9 +112,9 @@ namespace MyRainbow.DBProviders
 				cmd.CommandText += $"{comma}(@Key{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter}){Environment.NewLine}";
 				comma = ",";
 				NpgsqlParameter param;
-				if (cmd.Parameters.Contains($"@Key{param_counter}"))
+				if (cmd.Parameters.TryGetValue($"@Key{param_counter}", out param))
 				{
-					param = cmd.Parameters[$"@Key{param_counter}"] as NpgsqlParameter;
+					//param = cmd.Parameters[$"@Key{param_counter}"] as NpgsqlParameter;
 					param.Value = key;
 				}
 				else
@@ -127,9 +127,9 @@ namespace MyRainbow.DBProviders
 					cmd.Parameters.Add(param);
 				}
 
-				if (cmd.Parameters.Contains($"@hashMD5{param_counter}"))
+				if (cmd.Parameters.TryGetValue($"@hashMD5{param_counter}", out param))
 				{
-					param = cmd.Parameters[$"@hashMD5{param_counter}"] as NpgsqlParameter;
+					//param = cmd.Parameters[$"@hashMD5{param_counter}"] as NpgsqlParameter;
 					param.Value = hashMD5;
 				}
 				else
@@ -142,9 +142,9 @@ namespace MyRainbow.DBProviders
 					cmd.Parameters.Add(param);
 				}
 
-				if (cmd.Parameters.Contains($"@hashSHA256{param_counter}"))
+				if (cmd.Parameters.TryGetValue($"@hashSHA256{param_counter}", out param))
 				{
-					param = cmd.Parameters[$"@hashSHA256{param_counter}"] as NpgsqlParameter;
+					//param = cmd.Parameters[$"@hashSHA256{param_counter}"] as NpgsqlParameter;
 					param.Value = hashSHA256;
 				}
 				else
@@ -156,6 +156,7 @@ namespace MyRainbow.DBProviders
 					param.Value = hashSHA256;
 					cmd.Parameters.Add(param);
 				}
+				cmd.Prepare();
 
 				param_counter++;
 
@@ -163,6 +164,7 @@ namespace MyRainbow.DBProviders
 				{
 					cmd.CommandText += ";";
 					cmd.ExecuteNonQuery();
+					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd = new NpgsqlCommand("", Conn, tran);
 					cmd.CommandType = System.Data.CommandType.Text;
@@ -179,6 +181,7 @@ namespace MyRainbow.DBProviders
 					{
 						cmd.CommandText += ";";
 						cmd.ExecuteNonQuery();
+						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd = new NpgsqlCommand("", Conn, tran);
 						cmd.CommandType = System.Data.CommandType.Text;
@@ -217,6 +220,7 @@ namespace MyRainbow.DBProviders
 			{
 				cmd.CommandText += ";";
 				cmd.ExecuteNonQuery();
+				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)

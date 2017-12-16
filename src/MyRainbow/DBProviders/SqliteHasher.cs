@@ -131,6 +131,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 				{
 					//cmd.Prepare();
 					cmd.ExecuteNonQuery();
+					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd.CommandText = "";
 					cmd.Connection = Conn;
@@ -144,6 +145,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 					{
 						//cmd.Prepare();
 						cmd.ExecuteNonQuery();
+						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd.CommandText = "";
 						cmd.Connection = Conn;
@@ -179,6 +181,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			{
 				//cmd.Prepare();
 				cmd.ExecuteNonQuery();
+				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
