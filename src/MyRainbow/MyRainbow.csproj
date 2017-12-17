@@ -12,6 +12,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="DBScripts\CosmosDB-bulkImport.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="DBScripts\CosmosDB-bulkImport.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
 	<None Update="DBScripts\**\*">
 	  <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 	</None>
@@ -41,6 +51,12 @@
   <ItemGroup>
 	<DotNetCliToolReference Include="Microsoft.Extensions.SecretManager.Tools" Version="2.0.0" />
 	<!--<DotNetCliToolReference Include="Pomelo.Extensions.Caching.MySqlConfig.Tools" Version="1.0.0-preview2-final" />-->
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="DBScripts\CosmosDB-bulkDelete.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

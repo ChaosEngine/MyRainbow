@@ -11,6 +11,8 @@ using Microsoft.Azure.Documents.Linq;
 using System.Linq.Expressions;
 using Newtonsoft.Json;
 using System.Text;
+using System.Collections.ObjectModel;
+using System.IO;
 
 namespace MyRainbow.DBProviders
 {
@@ -73,38 +75,58 @@ namespace MyRainbow.DBProviders
 		public override void EnsureExist()
 		{
 			_db.Initialize();
+
+
+			string scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkDelete.js";
+			string scriptName = "bulkDelete.js";
+			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
+
+			scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkImport.js";
+			scriptName = "bulkImport.js";
+			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256, Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null, int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
+		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
+			int batchInsertCount = 1_000, int batchTransactionCommitCount = 5_000)
 		{
 			string last_key_entry = GetLastKeyEntry();
-		
+
 			double? nextPause = null;
 			if (stopwatch != null)
 			{
 				stopwatch.Start();
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
 			}
-			long counter = 0, last_pause_counter = 0, tps = 0;
+			long counter = 0, last_pause_counter = 0, tps = 0, id = 0;
+			var documents = new List<ThinHashes>(1000);
 
 			foreach (var chars_table in tableOfTableOfChars)
 			{
+				id++;
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
 				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
-				var job = _db.CreateItemAsync(new ThinHashes
+				var doc = new ThinHashes
 				{
+					Id = id.ToString(),
 					Key = key,
 					HashMD5 = hashMD5,
 					HashSHA256 = hashSHA256
-				});
-				job.Wait();
-				var document = job.Result;
+				};
+				//var job = _db.CreateItemAsync(doc);
+				//job.Wait();
+				//var ret_document = job.Result;
+				documents.Add(doc);
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
+					var job = _db.InvokeBulkInsertSproc(documents);
+					job.Wait();
+					documents.Clear();
+
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 				}
@@ -174,7 +196,7 @@ namespace MyRainbow.DBProviders
 		public string HashSHA256 { get; set; }
 	}
 
-	public class ThinHashesDocumentDBRepository : DocumentDBRepository<ThinHashes>
+	class ThinHashesDocumentDBRepository : DocumentDBRepository<ThinHashes>
 	{
 		private Guid transactionId;
 
@@ -186,9 +208,9 @@ namespace MyRainbow.DBProviders
 
 		public async Task<IEnumerable<ThinHashes>> GetItemsSortedDescByKeyAsync(/*Expression<Func<ThinHashes, bool>> predicate, */int itemsCount = -1)
 		{
-			IDocumentQuery<ThinHashes> query = client.CreateDocumentQuery<ThinHashes>(
-				UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId),
-				new FeedOptions { MaxItemCount = itemsCount })
+			IDocumentQuery<ThinHashes> query = _client.CreateDocumentQuery<ThinHashes>(
+				UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
+				new FeedOptions { MaxItemCount = itemsCount/*, EnableCrossPartitionQuery = true*/ })
 				//.Where(predicate)
 				.OrderByDescending(o => o.Key)
 				.Take(itemsCount)
@@ -205,16 +227,12 @@ namespace MyRainbow.DBProviders
 
 		public async Task InvokeBulkDeleteSproc()
 		{
-			var client = new DocumentClient(new Uri(Endpoint), Key);
-			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId);
+			var client = new DocumentClient(new Uri(_endpoint), _key);
+			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
 
-			//string scriptFileName = @"bulkDelete.js";
-			//string scriptId = Path.GetFileNameWithoutExtension(scriptFileName);
 			string scriptName = "bulkDelete.js";
 
-			//await CreateSprocIfNotExists(scriptFileName, scriptId, scriptName);
-
-			Uri sprocUri = UriFactory.CreateStoredProcedureUri(DatabaseId, CollectionId, scriptName);
+			Uri sprocUri = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, scriptName);
 
 			try
 			{
@@ -223,7 +241,9 @@ namespace MyRainbow.DBProviders
 				bool continuation;
 				do
 				{
-					var response = await client.ExecuteStoredProcedureAsync<Document>(sprocUri, transactionId);
+					var response = await client.ExecuteStoredProcedureAsync<Document>(sprocUri,
+						//new RequestOptions { PartitionKey = new PartitionKey("mmmmm") },
+						transactionId);
 					continuation = response.Response.GetPropertyValue<bool>("continuation");
 					deleted = response.Response.GetPropertyValue<int>("deleted");
 				}
@@ -235,37 +255,108 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		internal void Cleanup()
+		internal async Task InvokeBulkInsertSproc(List<ThinHashes> documents)
 		{
-			if (client != null)
+			int maxFiles = 2000, maxScriptSize = 50000;
+			int currentCount = 0;
+			int fileCount = maxFiles != 0 ? Math.Min(maxFiles, documents.Count) : documents.Count;
+
+
+			Uri sproc = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, "bulkImport.js");
+
+
+			// 4. Create a batch of docs (MAX is limited by request size (2M) and to script for execution.           
+			// We send batches of documents to create to script.
+			// Each batch size is determined by MaxScriptSize.
+			// MaxScriptSize should be so that:
+			// -- it fits into one request (MAX reqest size is 16Kb).
+			// -- it doesn't cause the script to time out.
+			// -- it is possible to experiment with MaxScriptSize to get best perf given number of throttles, etc.
+			while (currentCount < fileCount)
 			{
-				client.Dispose();
-				client = null;
+				// 5. Create args for current batch.
+				//    Note that we could send a string with serialized JSON and JSON.parse it on the script side,
+				//    but that would cause script to run longer. Since script has timeout, unload the script as much
+				//    as we can and do the parsing by client and framework. The script will get JavaScript objects.
+				string argsJson = CreateBulkInsertScriptArguments(documents, currentCount, fileCount, maxScriptSize);
+
+				var args = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(argsJson) };
+
+				// 6. execute the batch.
+				StoredProcedureResponse<int> scriptResult = await _client.ExecuteStoredProcedureAsync<int>(
+					sproc,
+					//new RequestOptions { PartitionKey = new PartitionKey("mmmmm") },
+					args);
+
+				// 7. Prepare for next batch.
+				int currentlyInserted = scriptResult.Response;
+				currentCount += currentlyInserted;
 			}
+
+			/*// 8. Validate
+			int numDocs = 0;
+			string continuation = string.Empty;
+			do
+			{
+				// Read document feed and count the number of documents.
+				FeedResponse<dynamic> response = await client.ReadDocumentFeedAsync(
+					UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId),
+					new FeedOptions { RequestContinuation = continuation });
+				numDocs += response.Count;
+
+				await Task.Delay(100);
+
+				// Get the continuation so that we know when to stop.
+				continuation = response.ResponseContinuation;
+			}
+			while (!string.IsNullOrEmpty(continuation));
+
+			Console.WriteLine("Found {0} documents in the collection. There were originally {1} files in the Data directory",
+				numDocs, fileCount);*/
+		}
+
+		private static string CreateBulkInsertScriptArguments(List<ThinHashes> docs, int currentIndex, int maxCount, int maxScriptSize)
+		{
+			var jsonDocumentArray = new StringBuilder(1000);
+
+			if (currentIndex >= maxCount) return string.Empty;
+
+			jsonDocumentArray.Append("[");
+			string serialized = JsonConvert.SerializeObject(docs[currentIndex]);
+			jsonDocumentArray.Append(serialized);
+
+			int scriptCapacityRemaining = maxScriptSize;
+
+			int i = 1;
+			while (jsonDocumentArray.Length < scriptCapacityRemaining && (currentIndex + i) < maxCount)
+			{
+				jsonDocumentArray.Append(", ").Append(JsonConvert.SerializeObject(docs[currentIndex + i]));
+				i++;
+			}
+
+			jsonDocumentArray.Append("]");
+			return jsonDocumentArray.ToString();
 		}
 	}
 
-	public class DocumentDBRepository<T> where T : class
+	class DocumentDBRepository<T> where T : class
 	{
-		protected readonly string Endpoint;
-		protected readonly string Key;
-		protected readonly string DatabaseId;
-		protected readonly string CollectionId;
-		protected DocumentClient client;
+		protected readonly string _endpoint, _key, _databaseId, _collectionId;
+		protected DocumentClient _client;
 
 		public DocumentDBRepository(string endpoint, string key, string databaseId, string collectionId)
 		{
-			Endpoint = endpoint;
-			Key = key;
-			DatabaseId = databaseId;
-			CollectionId = collectionId;
+			_endpoint = endpoint;
+			_key = key;
+			_databaseId = databaseId;
+			_collectionId = collectionId;
 		}
 
 		public async Task<T> GetItemAsync(string id)
 		{
 			try
 			{
-				Document document = await client.ReadDocumentAsync(UriFactory.CreateDocumentUri(DatabaseId, CollectionId, id));
+				Document document = await _client.ReadDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
 				return (T)(dynamic)document;
 			}
 			catch (DocumentClientException e)
@@ -283,8 +374,8 @@ namespace MyRainbow.DBProviders
 
 		public async Task<IEnumerable<T>> GetItemsAsync(Expression<Func<T, bool>> predicate, int itemsCount = -1)
 		{
-			IDocumentQuery<T> query = client.CreateDocumentQuery<T>(
-				UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId),
+			IDocumentQuery<T> query = _client.CreateDocumentQuery<T>(
+				UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
 				new FeedOptions { MaxItemCount = itemsCount })
 				.Where(predicate)
 				.AsDocumentQuery();
@@ -300,37 +391,47 @@ namespace MyRainbow.DBProviders
 
 		public async Task<Document> CreateItemAsync(T item)
 		{
-			return await client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId), item);
+			return await _client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId), item,
+				disableAutomaticIdGeneration: true);
 		}
 
 		public async Task<Document> UpdateItemAsync(string id, T item)
 		{
-			return await client.ReplaceDocumentAsync(UriFactory.CreateDocumentUri(DatabaseId, CollectionId, id), item);
+			return await _client.ReplaceDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id), item);
 		}
 
 		public async Task DeleteItemAsync(string id)
 		{
-			await client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(DatabaseId, CollectionId, id));
+			await _client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
 		}
 
 		public void Initialize()
 		{
-			client = new DocumentClient(new Uri(Endpoint), Key);
+			_client = new DocumentClient(new Uri(_endpoint), _key);
 			CreateDatabaseIfNotExistsAsync().Wait();
 			CreateCollectionIfNotExistsAsync().Wait();
+		}
+
+		public void Cleanup()
+		{
+			if (_client != null)
+			{
+				_client.Dispose();
+				_client = null;
+			}
 		}
 
 		private async Task CreateDatabaseIfNotExistsAsync()
 		{
 			try
 			{
-				await client.ReadDatabaseAsync(UriFactory.CreateDatabaseUri(DatabaseId));
+				await _client.ReadDatabaseAsync(UriFactory.CreateDatabaseUri(_databaseId));
 			}
 			catch (DocumentClientException e)
 			{
 				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
 				{
-					await client.CreateDatabaseAsync(new Database { Id = DatabaseId });
+					await _client.CreateDatabaseAsync(new Database { Id = _databaseId });
 				}
 				else
 				{
@@ -343,16 +444,30 @@ namespace MyRainbow.DBProviders
 		{
 			try
 			{
-				await client.ReadDocumentCollectionAsync(UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId));
+				await _client.ReadDocumentCollectionAsync(UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId));
 			}
 			catch (DocumentClientException e)
 			{
 				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
 				{
-					await client.CreateDocumentCollectionAsync(
-						UriFactory.CreateDatabaseUri(DatabaseId),
-						new DocumentCollection { Id = CollectionId },
-						new RequestOptions { OfferThroughput = 1000 });
+					DocumentCollection myCollection = new DocumentCollection
+					{
+						Id = _collectionId,
+						//myCollection.PartitionKey.Paths.Add("/Key"),
+						UniqueKeyPolicy = new UniqueKeyPolicy
+						{
+							UniqueKeys = new Collection<UniqueKey>
+							{
+								new UniqueKey { Paths = new Collection<string> { "/Key", "/HashMD5", "/HashSHA256" }},
+							}
+						},
+						IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 }),
+					};
+
+					await _client.CreateDocumentCollectionAsync(
+							UriFactory.CreateDatabaseUri(_databaseId),
+							myCollection,
+							new RequestOptions { OfferThroughput = 2500 });
 				}
 				else
 				{
@@ -360,5 +475,42 @@ namespace MyRainbow.DBProviders
 				}
 			}
 		}
+
+		public async Task CreateSprocIfNotExists(string scriptFileName, string scriptId, string scriptName)
+		{
+			var client = new DocumentClient(new Uri(_endpoint), _key);
+			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
+
+			var sproc = new StoredProcedure
+			{
+				Id = scriptId,
+				Body = File.ReadAllText(scriptFileName)
+			};
+
+			bool needToCreate = false;
+			Uri sprocUri = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, scriptName);
+
+			try
+			{
+				await client.ReadStoredProcedureAsync(sprocUri);
+			}
+			catch (DocumentClientException de)
+			{
+				if (de.StatusCode != System.Net.HttpStatusCode.NotFound)
+				{
+					throw;
+				}
+				else
+				{
+					needToCreate = true;
+				}
+			}
+
+			if (needToCreate)
+			{
+				await client.CreateStoredProcedureAsync(collectionLink, sproc);
+			}
+		}
+
 	}
 }
