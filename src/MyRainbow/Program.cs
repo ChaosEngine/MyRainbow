@@ -42,6 +42,15 @@ namespace MyRainbow
 			return TConverter.ChangeType<T>(from);
 		}
 
+		private IConfigurationSection GetSectionFromCmdSecretOrEnv(string section)
+		{
+			IConfigurationSection from = Configuration.GetSection(section);
+			if (from == null)
+				return null;
+
+			return from;
+		}
+
 		internal void SqlServerExample()
 		{
 			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("SqlConnection")))
@@ -221,9 +230,40 @@ namespace MyRainbow
 				dbase.Verify();
 			}
 		}
+
 		internal void SqlLiteExample()
 		{
 			using (var dbase = new SqliteHasher(GetParamFromCmdSecretOrEnv<string>("Sqlite")))
+			{
+				dbase.EnsureExist();
+				if (_purge)
+					dbase.Purge();
+
+				bool interrupted = false;
+
+				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
+					(key, hashMD5, hashSHA256, counter, tps) =>
+					{
+						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+						if (Console.KeyAvailable)
+						{
+							interrupted = true;
+							return true;
+						}
+						return false;
+					}, _stopwatch);
+
+				_stopwatch.Stop();
+
+				if (!interrupted)
+					dbase.PostGenerateExecute();
+				dbase.Verify();
+			}
+		}
+
+		internal void CosmosDBExample()
+		{
+			using (var dbase = new CosmosDBHasher(GetSectionFromCmdSecretOrEnv("CosmosDB")))
 			{
 				dbase.EnsureExist();
 				if (_purge)
@@ -324,6 +364,13 @@ namespace MyRainbow
 					case "postgres":
 					case "postgresql":
 						PostgreSqlExample();
+						break;
+
+					case "cosmosdb":
+					case "cosmos":
+					case "azuredb":
+					case "azure":
+						CosmosDBExample();
 						break;
 
 					default:

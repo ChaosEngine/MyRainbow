@@ -29,9 +29,13 @@
 	<PackageReference Include="MySqlConnector" Version="0.33.1" />
 	<PackageReference Include="Npgsql" Version="3.2.6" />
 	<PackageReference Include="StackExchange.Redis" Version="1.2.6" />
-	<!--<PackageReference Include="System.Collections.Immutable" Version="1.4.0" />
-	<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="2.0.0" />
-	<PackageReference Include="System.Linq.Parallel" Version="4.3.0" />-->
+
+	<!--<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.0.1" />
+	<PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.0.1" />
+	<PackageReference Include="Microsoft.AspNetCore.Routing" Version="2.0.1" />-->
+	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.0.0" />	
+	<PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="1.7.1" />
+	
   </ItemGroup>
 
   <ItemGroup>
