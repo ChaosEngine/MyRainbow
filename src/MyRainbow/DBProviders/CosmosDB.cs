@@ -79,11 +79,15 @@ namespace MyRainbow.DBProviders
 
 			string scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkDelete.js";
 			string scriptName = "bulkDelete.js";
-			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
+			_db.CreateSprocIfNotExistsAsync(scriptFileName, scriptName, scriptName).Wait();
 
 			scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkImport.js";
 			scriptName = "bulkImport.js";
-			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
+			_db.CreateSprocIfNotExistsAsync(scriptFileName, scriptName, scriptName).Wait();
+
+			scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-ConvertToNumber.js";
+			scriptName = "ConvertToNumber";
+			_db.CreateUDFIfNotExistsAsync(scriptFileName, scriptName, scriptName).Wait();
 		}
 
 		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
@@ -465,7 +469,14 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		internal async Task CreateSprocIfNotExists(string scriptFileName, string scriptId, string scriptName)
+		/// <summary>
+		/// Creates the sproc if not exists asynchronous.
+		/// </summary>
+		/// <param name="scriptFileName">Name of the script file.</param>
+		/// <param name="scriptId">The script identifier.</param>
+		/// <param name="scriptName">Name of the script.</param>
+		/// <returns></returns>
+		internal async Task CreateSprocIfNotExistsAsync(string scriptFileName, string scriptId, string scriptName)
 		{
 			var client = new DocumentClient(new Uri(_endpoint), _key);
 			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
@@ -498,6 +509,50 @@ namespace MyRainbow.DBProviders
 			if (needToCreate)
 			{
 				await client.CreateStoredProcedureAsync(collectionLink, sproc);
+			}
+		}
+
+		/// <summary>
+		/// Creates the udf if not exists asynchronous.
+		/// </summary>
+		/// <param name="scriptFileName">Name of the script file.</param>
+		/// <param name="scriptId">The script identifier.</param>
+		/// <param name="scriptName">Name of the script.</param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		internal async Task CreateUDFIfNotExistsAsync(string scriptFileName, string scriptId, string scriptName)
+		{
+			var client = new DocumentClient(new Uri(_endpoint), _key);
+			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
+
+			var function = new UserDefinedFunction
+			{
+				Id = scriptId,
+				Body = File.ReadAllText(scriptFileName),
+			};
+
+			bool needToCreate = false;
+			Uri udfuncUri = UriFactory.CreateUserDefinedFunctionUri(_databaseId, _collectionId, scriptName);
+
+			try
+			{
+				await client.ReadUserDefinedFunctionAsync(udfuncUri);
+			}
+			catch (DocumentClientException de)
+			{
+				if (de.StatusCode != System.Net.HttpStatusCode.NotFound)
+				{
+					throw;
+				}
+				else
+				{
+					needToCreate = true;
+				}
+			}
+
+			if (needToCreate)
+			{
+				await client.CreateUserDefinedFunctionAsync(collectionLink, function);
 			}
 		}
 	}

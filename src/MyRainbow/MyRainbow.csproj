@@ -57,6 +57,9 @@
     <None Update="DBScripts\CosmosDB-bulkDelete.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="DBScripts\CosmosDB-ConvertToNumber.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
