@@ -99,7 +99,7 @@ namespace MyRainbow.DBProviders
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0, id = 0;
-			var documents = new List<ThinHashes>(1000);
+			var documents = new List<DocumentDBHash>(1000);
 
 			foreach (var chars_table in tableOfTableOfChars)
 			{
@@ -109,7 +109,7 @@ namespace MyRainbow.DBProviders
 				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
-				var doc = new ThinHashes
+				var doc = new DocumentDBHash
 				{
 					Id = id.ToString(),
 					Key = key,
@@ -143,6 +143,13 @@ namespace MyRainbow.DBProviders
 
 				counter++;
 			}
+
+			if (documents.Count > 0)
+			{
+				var job = _db.InvokeBulkInsertSproc(documents);
+				job.Wait();
+				documents.Clear();
+			}
 		}
 
 		public override string GetLastKeyEntry()
@@ -173,30 +180,32 @@ namespace MyRainbow.DBProviders
 			var job = _db.GetItemsAsync(d => d.HashMD5 == "b25319faaaea0bf397b2bed872b78c45");
 			job.Wait();
 			var lst = job.Result;
-			foreach (ThinHashes rdr in lst)
+			foreach (DocumentDBHash rdr in lst)
 			{
 				Console.WriteLine("key={0} md5={1} sha256={2}", rdr.Key, rdr.HashMD5, rdr.HashSHA256);
 			}
 		}
 	}
 
-
-	public class ThinHashes
+	public class DocumentDBHash : ThinHashes
 	{
 		[JsonProperty(PropertyName = "id")]
 		public string Id { get; set; }
+	}
 
-		[JsonProperty(PropertyName = "Key")]
+	public class ThinHashes
+	{
+		//[JsonProperty(PropertyName = "Key")]
 		public string Key { get; set; }
 
-		[JsonProperty(PropertyName = "HashMD5")]
+		//[JsonProperty(PropertyName = "HashMD5")]
 		public string HashMD5 { get; set; }
 
-		[JsonProperty(PropertyName = "HashSHA256")]
+		//[JsonProperty(PropertyName = "HashSHA256")]
 		public string HashSHA256 { get; set; }
 	}
 
-	class ThinHashesDocumentDBRepository : DocumentDBRepository<ThinHashes>
+	class ThinHashesDocumentDBRepository : DocumentDBRepository<DocumentDBHash>
 	{
 		private Guid transactionId;
 
@@ -206,9 +215,28 @@ namespace MyRainbow.DBProviders
 			transactionId = Guid.NewGuid();
 		}
 
-		public async Task<IEnumerable<ThinHashes>> GetItemsSortedDescByKeyAsync(/*Expression<Func<ThinHashes, bool>> predicate, */int itemsCount = -1)
+		public override void Initialize()
 		{
-			IDocumentQuery<ThinHashes> query = _client.CreateDocumentQuery<ThinHashes>(
+			_client = new DocumentClient(new Uri(_endpoint), _key);
+			CreateDatabaseIfNotExistsAsync().Wait();
+			CreateCollectionIfNotExistsAsync(new DocumentCollection
+			{
+				Id = _collectionId,
+				//myCollection.PartitionKey.Paths.Add("/Key"),
+				UniqueKeyPolicy = new UniqueKeyPolicy
+				{
+					UniqueKeys = new Collection<UniqueKey>
+					{
+						new UniqueKey { Paths = new Collection<string> { "/Key", "/HashMD5", "/HashSHA256" }},
+					}
+				},
+				IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 }),
+			}).Wait();
+		}
+
+		public async Task<IEnumerable<DocumentDBHash>> GetItemsSortedDescByKeyAsync(int itemsCount = -1)
+		{
+			IDocumentQuery<DocumentDBHash> query = _client.CreateDocumentQuery<DocumentDBHash>(
 				UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
 				new FeedOptions { MaxItemCount = itemsCount/*, EnableCrossPartitionQuery = true*/ })
 				//.Where(predicate)
@@ -216,16 +244,16 @@ namespace MyRainbow.DBProviders
 				.Take(itemsCount)
 				.AsDocumentQuery();
 
-			List<ThinHashes> results = new List<ThinHashes>();
+			List<DocumentDBHash> results = new List<DocumentDBHash>();
 			while (query.HasMoreResults)
 			{
-				results.AddRange(await query.ExecuteNextAsync<ThinHashes>());
+				results.AddRange(await query.ExecuteNextAsync<DocumentDBHash>());
 			}
 
 			return results;
 		}
 
-		public async Task InvokeBulkDeleteSproc()
+		internal async Task InvokeBulkDeleteSproc()
 		{
 			var client = new DocumentClient(new Uri(_endpoint), _key);
 			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
@@ -255,7 +283,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		internal async Task InvokeBulkInsertSproc(List<ThinHashes> documents)
+		internal async Task<int> InvokeBulkInsertSproc(List<DocumentDBHash> documents)
 		{
 			int maxFiles = 2000, maxScriptSize = 50000;
 			int currentCount = 0;
@@ -293,37 +321,17 @@ namespace MyRainbow.DBProviders
 				currentCount += currentlyInserted;
 			}
 
-			/*// 8. Validate
-			int numDocs = 0;
-			string continuation = string.Empty;
-			do
-			{
-				// Read document feed and count the number of documents.
-				FeedResponse<dynamic> response = await client.ReadDocumentFeedAsync(
-					UriFactory.CreateDocumentCollectionUri(DatabaseId, CollectionId),
-					new FeedOptions { RequestContinuation = continuation });
-				numDocs += response.Count;
-
-				await Task.Delay(100);
-
-				// Get the continuation so that we know when to stop.
-				continuation = response.ResponseContinuation;
-			}
-			while (!string.IsNullOrEmpty(continuation));
-
-			Console.WriteLine("Found {0} documents in the collection. There were originally {1} files in the Data directory",
-				numDocs, fileCount);*/
+			return currentCount;
 		}
 
-		private static string CreateBulkInsertScriptArguments(List<ThinHashes> docs, int currentIndex, int maxCount, int maxScriptSize)
+		private static string CreateBulkInsertScriptArguments(List<DocumentDBHash> docs, int currentIndex, int maxCount, int maxScriptSize)
 		{
 			var jsonDocumentArray = new StringBuilder(1000);
 
 			if (currentIndex >= maxCount) return string.Empty;
 
-			jsonDocumentArray.Append("[");
 			string serialized = JsonConvert.SerializeObject(docs[currentIndex]);
-			jsonDocumentArray.Append(serialized);
+			jsonDocumentArray.Append("[").Append(serialized);
 
 			int scriptCapacityRemaining = maxScriptSize;
 
@@ -339,7 +347,7 @@ namespace MyRainbow.DBProviders
 		}
 	}
 
-	class DocumentDBRepository<T> where T : class
+	abstract class DocumentDBRepository<T> where T : class
 	{
 		protected readonly string _endpoint, _key, _databaseId, _collectionId;
 		protected DocumentClient _client;
@@ -352,7 +360,7 @@ namespace MyRainbow.DBProviders
 			_collectionId = collectionId;
 		}
 
-		public async Task<T> GetItemAsync(string id)
+		public async Task<T> GetByIDAsync(string id)
 		{
 			try
 			{
@@ -405,12 +413,7 @@ namespace MyRainbow.DBProviders
 			await _client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
 		}
 
-		public void Initialize()
-		{
-			_client = new DocumentClient(new Uri(_endpoint), _key);
-			CreateDatabaseIfNotExistsAsync().Wait();
-			CreateCollectionIfNotExistsAsync().Wait();
-		}
+		public abstract void Initialize();
 
 		public void Cleanup()
 		{
@@ -421,7 +424,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		private async Task CreateDatabaseIfNotExistsAsync()
+		protected async Task CreateDatabaseIfNotExistsAsync()
 		{
 			try
 			{
@@ -440,7 +443,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		private async Task CreateCollectionIfNotExistsAsync()
+		protected async Task CreateCollectionIfNotExistsAsync(DocumentCollection myNewCollection)
 		{
 			try
 			{
@@ -450,24 +453,10 @@ namespace MyRainbow.DBProviders
 			{
 				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
 				{
-					DocumentCollection myCollection = new DocumentCollection
-					{
-						Id = _collectionId,
-						//myCollection.PartitionKey.Paths.Add("/Key"),
-						UniqueKeyPolicy = new UniqueKeyPolicy
-						{
-							UniqueKeys = new Collection<UniqueKey>
-							{
-								new UniqueKey { Paths = new Collection<string> { "/Key", "/HashMD5", "/HashSHA256" }},
-							}
-						},
-						IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 }),
-					};
-
 					await _client.CreateDocumentCollectionAsync(
-							UriFactory.CreateDatabaseUri(_databaseId),
-							myCollection,
-							new RequestOptions { OfferThroughput = 2500 });
+						UriFactory.CreateDatabaseUri(_databaseId),
+						myNewCollection,
+						new RequestOptions { OfferThroughput = 2500 });
 				}
 				else
 				{
@@ -476,7 +465,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		public async Task CreateSprocIfNotExists(string scriptFileName, string scriptId, string scriptName)
+		internal async Task CreateSprocIfNotExists(string scriptFileName, string scriptId, string scriptName)
 		{
 			var client = new DocumentClient(new Uri(_endpoint), _key);
 			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
@@ -511,6 +500,5 @@ namespace MyRainbow.DBProviders
 				await client.CreateStoredProcedureAsync(collectionLink, sproc);
 			}
 		}
-
 	}
 }
