@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MyRainbow.DBProviders
 {
@@ -19,28 +21,55 @@ namespace MyRainbow.DBProviders
 		{
 			Conn = new NpgsqlConnection(connectionString);
 
-			Conn.ProvideClientCertificatesCallback = MyProvideClientCertificatesCallback;
+			//TODO: depend validation of client CA upon SSl Mode=Require (only that)
+			if (IsSSLRequired(connectionString))
+				Conn.ProvideClientCertificatesCallback = MyProvideClientCertificatesCallback;
 
 			Conn.Open();
 			Tran = null;
 
 			void MyProvideClientCertificatesCallback(X509CertificateCollection clientCerts)
 			{
-				using (X509Store store = new X509Store(StoreLocation.CurrentUser))
+				//TODO: On linux there is no C cert store
+				if (Environment.OSVersion.Platform == PlatformID.Win32NT)
 				{
-					store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-
-					var currentCerts = store.Certificates;
-					currentCerts = currentCerts.Find(X509FindType.FindByTimeValid, DateTime.Now, false);
-					currentCerts = currentCerts.Find(X509FindType.FindByIssuerName, "theBrain.ca", false);
-					currentCerts = currentCerts.Find(X509FindType.FindBySubjectName, Environment.MachineName, false);
-					if (currentCerts != null && currentCerts.Count > 0)
+					using (X509Store store = new X509Store(StoreLocation.CurrentUser))
 					{
-						var cert = currentCerts[0];
-						clientCerts.Add(cert);
+						store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
+
+						var currentCerts = store.Certificates;
+						currentCerts = currentCerts.Find(X509FindType.FindByTimeValid, DateTime.Now, false);
+						currentCerts = currentCerts.Find(X509FindType.FindByIssuerName, "theBrain.ca", false);
+						currentCerts = currentCerts.Find(X509FindType.FindBySubjectName, Environment.MachineName, false);
+						if (currentCerts != null && currentCerts.Count > 0)
+						{
+							var cert = currentCerts[0];
+							clientCerts.Add(cert);
+						}
 					}
 				}
+				else
+				{
+					//TODO: figure someting out on Unixes
+				}
 			}
+		}
+
+		/// <summary>
+		/// SSL Mode=Require, Disable, or Prefer
+		/// </summary>
+		/// <param name="connectionString"></param>
+		/// <returns></returns>
+		private bool IsSSLRequired(string connectionString)
+		{
+			Dictionary<string, string> dict =
+				Regex.Matches(connectionString, @"\s*(?<key>[^;=]+)\s*=\s*((?<value>[^'][^;]*)|'(?<value>[^']*)')")
+				.Cast<Match>()
+				.ToDictionary(m => m.Groups["key"].Value, m => m.Groups["value"].Value);
+
+			//Console.WriteLine(string.Join(", ", results));
+			var result = dict.ContainsKey("SSL Mode") && dict["SSL Mode"] == "Require";
+			return result;
 		}
 
 		public void Dispose()
@@ -156,18 +185,19 @@ namespace MyRainbow.DBProviders
 					param.Value = hashSHA256;
 					cmd.Parameters.Add(param);
 				}
-				cmd.Prepare();
+
 
 				param_counter++;
 
 				if (counter % batchInsertCount == 0)
 				{
 					cmd.CommandText += ";";
+					cmd.Prepare();
 					cmd.ExecuteNonQuery();
-					cmd.Parameters.Clear();
-					cmd.Dispose();
-					cmd = new NpgsqlCommand("", Conn, tran);
-					cmd.CommandType = System.Data.CommandType.Text;
+					//cmd.Parameters.Clear();
+					//cmd.Dispose();
+					//cmd = new NpgsqlCommand("", Conn, tran);
+					//cmd.CommandType = System.Data.CommandType.Text;
 					cmd.CommandText = insert_into;
 					cmd.Connection = Conn;
 					cmd.Transaction = tran;
@@ -181,10 +211,10 @@ namespace MyRainbow.DBProviders
 					{
 						cmd.CommandText += ";";
 						cmd.ExecuteNonQuery();
-						cmd.Parameters.Clear();
-						cmd.Dispose();
-						cmd = new NpgsqlCommand("", Conn, tran);
-						cmd.CommandType = System.Data.CommandType.Text;
+						//cmd.Parameters.Clear();
+						//cmd.Dispose();
+						//cmd = new NpgsqlCommand("", Conn, tran);
+						//cmd.CommandType = System.Data.CommandType.Text;
 						cmd.CommandText = insert_into;
 						cmd.Connection = Conn;
 						cmd.Transaction = tran;
