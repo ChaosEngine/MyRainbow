@@ -55,6 +55,15 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
+		private Dictionary<string, string> GetConnStringAsDictionary(string connectionString)
+		{
+			Dictionary<string, string> dict =
+				Regex.Matches(connectionString, @"\s*(?<key>[^;=]+)\s*=\s*((?<value>[^'][^;]*)|'(?<value>[^']*)')")
+				.Cast<Match>()
+				.ToDictionary(m => m.Groups["key"].Value, m => m.Groups["value"].Value);
+			return dict;
+		}
+
 		/// <summary>
 		/// SSL Mode=Require, Disable, or Prefer
 		/// </summary>
@@ -62,11 +71,7 @@ namespace MyRainbow.DBProviders
 		/// <returns></returns>
 		private bool IsSSLRequired(string connectionString)
 		{
-			Dictionary<string, string> dict =
-				Regex.Matches(connectionString, @"\s*(?<key>[^;=]+)\s*=\s*((?<value>[^'][^;]*)|'(?<value>[^']*)')")
-				.Cast<Match>()
-				.ToDictionary(m => m.Groups["key"].Value, m => m.Groups["value"].Value);
-
+			var dict = GetConnStringAsDictionary(connectionString);
 			//Console.WriteLine(string.Join(", ", results));
 			var result = dict.ContainsKey("SSL Mode") && dict["SSL Mode"] == "Require";
 			return result;
