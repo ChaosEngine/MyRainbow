@@ -51,6 +51,8 @@ namespace MyRainbow
 			return from;
 		}
 
+		#region Examples
+
 		internal void SqlServerExample()
 		{
 			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("SqlConnection")))
@@ -291,6 +293,38 @@ namespace MyRainbow
 			}
 		}
 
+		internal void OracleExample()
+		{
+			using (var dbase = new OracleHasher(GetParamFromCmdSecretOrEnv<string>("Oracle")))
+			{
+				dbase.EnsureExist();
+				if (_purge)
+					dbase.Purge();
+
+				bool interrupted = false;
+
+				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
+					(key, hashMD5, hashSHA256, counter, tps) =>
+					{
+						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+						if (Console.KeyAvailable)
+						{
+							interrupted = true;
+							return true;
+						}
+						return false;
+					}, _stopwatch);
+
+				_stopwatch.Stop();
+
+				if (!interrupted)
+					dbase.PostGenerateExecute();
+				dbase.Verify();
+			}
+		}
+
+		#endregion Examples
+
 		internal int Exeute()
 		{
 			string db_kind;
@@ -316,7 +350,7 @@ namespace MyRainbow
 			{
 				Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
 					+ $@"/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}"
-					+ $@"/SqlConnection='...' or /MySQL='...' or /[other db connection]='...'");
+					+ $@"/SqlConnection='...' or /MySQL='...' or /Sqlite='Filename=./database.db' or /[other db connection]='...'");
 				Console.ReadKey();
 				throw ex;
 			}
@@ -373,6 +407,12 @@ namespace MyRainbow
 						CosmosDBExample();
 						break;
 
+					case "oracle":
+					case "orcle":
+					case "orcl":
+						OracleExample();
+						break;
+
 					default:
 						throw new NotSupportedException($"Unknown DBKind {db_kind}");
 				}
@@ -398,6 +438,7 @@ namespace MyRainbow
 			catch (Exception ex)
 			{
 				Console.Error.WriteLineAsync(ex.Message + Environment.NewLine + ex.StackTrace);
+				Debug.WriteLine(ex.Message + Environment.NewLine + ex.StackTrace);
 				return 1;
 			}
 		}
