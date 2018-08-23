@@ -53,7 +53,7 @@ namespace MyRainbow.DBProviders
   PRIMARY KEY (`Key`),
   UNIQUE KEY `IX_MD5` (`hashMD5`) USING BTREE,
   UNIQUE KEY `IX_SHA256` (`hashSHA256`) USING BTREE
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8";
+ ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=FIXED";
 
 			using (var cmd = new MySqlCommand(cmd_text, Conn, Tran))
 			{

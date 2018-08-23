@@ -157,7 +157,7 @@ namespace MyRainbow.DBProviders
 			var task = collection.FindAsync(filter);//.ToCursor();
 			task.ContinueWith(async (firstTask) =>
 			{
-				var count = await collection.CountAsync(new BsonDocument());
+				var count = await collection.CountDocumentsAsync(new BsonDocument());
 
 				Console.WriteLine($"count = {count}");
 				var cursor = firstTask.Result;
@@ -172,7 +172,7 @@ namespace MyRainbow.DBProviders
 		{
 			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
-			var count = await collection.CountAsync(new BsonDocument());
+			var count = await collection.CountDocumentsAsync(new BsonDocument());
 			if (count <= 0)
 				return null;
 

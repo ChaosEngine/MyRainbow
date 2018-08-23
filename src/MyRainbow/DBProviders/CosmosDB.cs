@@ -277,7 +277,7 @@ namespace MyRainbow.DBProviders
 				}
 				while (continuation && count-- > 0);
 			}
-			catch (DocumentClientException ex)
+			catch (DocumentClientException)
 			{
 				throw;
 			}
