@@ -40,7 +40,7 @@
 	<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="2.1.1" />
 	<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.1.1" />
 	<PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.1.2" />
-	<PackageReference Include="MongoDB.Driver" Version="2.7.0" />
+	<PackageReference Include="MongoDB.Driver" Version="2.7.2" />
 	<PackageReference Include="CassandraCSharpDriver" Version="3.6.0" />
 	<PackageReference Include="Microsoft.Data.Sqlite" Version="2.1.0" />
 	<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="2.18.3" />
