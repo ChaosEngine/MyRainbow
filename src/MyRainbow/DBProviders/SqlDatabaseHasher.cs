@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Microsoft.Data.SqlClient;
+using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -72,7 +72,7 @@ namespace MyRainbow.DBProviders
 
 		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
-			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
+			int batchInsertCount = 200, int batchTransactionCommitCount = 20_000)
 		{
 			string last_key_entry = GetLastKeyEntry();
 
@@ -80,7 +80,7 @@ namespace MyRainbow.DBProviders
 			if (stopwatch != null)
 			{
 				stopwatch.Start();
-				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
+				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1_000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
 			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);

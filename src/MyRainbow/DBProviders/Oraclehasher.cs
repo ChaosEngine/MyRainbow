@@ -87,16 +87,26 @@ END;
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1_000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction(IsolationLevel.ReadCommitted);
-			string insert_into = "INSERT INTO \"Hashes\"(\"Key\", \"hashMD5\", \"hashSHA256\") VALUES (:1, :2, :3)";
-			OracleCommand cmd = new OracleCommand(insert_into, Conn/*, tran*/)
+			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
+			OracleCommand cmd = new OracleCommand(@"
+CREATE PRIVATE TEMPORARY TABLE ORA$PTT_hashes
+(
+	""Key"" VARCHAR2(20 BYTE),
+	""hashMD5"" CHAR(32 BYTE),
+	""hashSHA256"" CHAR(64 BYTE)
+)
+ON COMMIT PRESERVE DEFINITION", Conn)
 			{
-				Transaction = tran,
-				CommandType = CommandType.Text,
+				CommandType = System.Data.CommandType.Text,
+				Transaction = tran
 			};
-			cmd.Prepare();
-
-			List<string> keys = new List<string>(batchInsertCount), md5s = new List<string>(batchInsertCount), sha256s = new List<string>(batchInsertCount);
+			cmd.ExecuteNonQuery();
+			cmd = new OracleCommand("", Conn)
+			{
+				CommandType = System.Data.CommandType.Text,
+				Transaction = tran
+			};
+			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
 				var key = string.Concat(chars_table);
@@ -104,47 +114,98 @@ END;
 				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
-				keys.Add(key); md5s.Add(hashMD5); sha256s.Add(hashSHA256);
+				//dbase.Insert(value, hash);
+				cmd.CommandText += $"INSERT /*+APPEND*/ INTO ORA$PTT_hashes(\"Key\", \"hashMD5\", \"hashSHA256\")" +
+					$" VALUES(:key{param_counter}, :hashMD5{param_counter}, :hashSHA256{param_counter});{Environment.NewLine}";
+				OracleParameter param;
+				if (cmd.Parameters.Contains($"key{param_counter}"))
+				{
+					param = cmd.Parameters[$"key{param_counter}"];
+					param.Value = key;
+				}
+				else
+				{
+					param = new OracleParameter($"key{param_counter}", OracleDbType.Varchar2, 20);
+					param.Value = key;
+					cmd.Parameters.Add(param);
+				}
+
+				if (cmd.Parameters.Contains($"hashMD5{param_counter}"))
+				{
+					param = cmd.Parameters[$"hashMD5{param_counter}"];
+					param.Value = hashMD5;
+				}
+				else
+				{
+					param = new OracleParameter($"hashMD5{param_counter}", OracleDbType.Char, 32);
+					param.Value = hashMD5;
+					cmd.Parameters.Add(param);
+				}
+
+				if (cmd.Parameters.Contains($"hashSHA256{param_counter}"))
+				{
+					param = cmd.Parameters[$"hashSHA256{param_counter}"];
+					param.Value = hashSHA256;
+				}
+				else
+				{
+					param = new OracleParameter($"hashSHA256{param_counter}", OracleDbType.Char, 64);
+					param.Value = hashSHA256;
+					cmd.Parameters.Add(param);
+				}
+
+				param_counter++;
 
 				if (counter % batchInsertCount == 0)
 				{
-					OracleParameter pKeys = new OracleParameter
-					{
-						OracleDbType = OracleDbType.Varchar2,
-						Size = 20,
-						Value = keys.ToArray()
-					};
-					OracleParameter pMd5s = new OracleParameter
-					{
-						OracleDbType = OracleDbType.Char,
-						Size = 32,
-						Value = md5s.ToArray()
-					};
-					OracleParameter pSha256 = new OracleParameter
-					{
-						OracleDbType = OracleDbType.Char,
-						Size = 64,
-						Value = sha256s.ToArray()
-					};
-					cmd.ArrayBindCount = keys.Count;
-					cmd.Parameters.Add(pKeys);
-					cmd.Parameters.Add(pMd5s);
-					cmd.Parameters.Add(pSha256);
+					cmd.CommandText = $@"BEGIN {cmd.CommandText}
+INSERT /*+APPEND*/ INTO ""Hashes""
+SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key"";
+COMMIT;
+DELETE FROM ORA$PTT_hashes;
+END;";
 					cmd.ExecuteNonQuery();
-
 					cmd.Parameters.Clear();
-					keys.Clear(); md5s.Clear(); sha256s.Clear();
+					cmd.Dispose();
+					cmd = new OracleCommand("", Conn)
+					{
+						CommandType = System.Data.CommandType.Text,
+						Transaction = tran
+					};
+					param_counter = 0;
 				}
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
+					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
+					{				
+						//cmd.Prepare();
+						cmd.CommandText = $@"BEGIN {cmd.CommandText} 
+INSERT /*+APPEND*/ INTO ""Hashes""
+SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key"";
+COMMIT;
+DELETE FROM ORA$PTT_hashes;
+END;";
+						cmd.ExecuteNonQuery();
+						cmd.Parameters.Clear();
+						cmd.Dispose();
+						cmd = new OracleCommand("", Conn)
+						{
+							CommandType = System.Data.CommandType.Text,
+							Transaction = tran
+						};
+						param_counter = 0;
+					}
 					tran.Commit(); tran.Dispose();
 					tran = null;
 
+					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+					//if (Console.KeyAvailable)
+					//	break;
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(IsolationLevel.ReadCommitted) as OracleTransaction;
+					cmd.Transaction = tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -156,35 +217,19 @@ END;
 					}
 					last_pause_counter = counter;
 				}
+
 				counter++;
 			}
 
-			if (keys.Count > 0)
+			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
 			{
-				OracleParameter pKeys = new OracleParameter
-				{
-					OracleDbType = OracleDbType.Varchar2,
-					Size = 20,
-					Value = keys.ToArray()
-				};
-				OracleParameter pMd5s = new OracleParameter
-				{
-					OracleDbType = OracleDbType.Char,
-					Size = 32,
-					Value = md5s.ToArray()
-				};
-				OracleParameter pSha256 = new OracleParameter
-				{
-					OracleDbType = OracleDbType.Char,
-					Size = 64,
-					Value = sha256s.ToArray()
-				};
-				cmd.ArrayBindCount = keys.Count;
-				cmd.Parameters.Add(pKeys);
-				cmd.Parameters.Add(pMd5s);
-				cmd.Parameters.Add(pSha256);
+				cmd.CommandText = $@"BEGIN {cmd.CommandText} 
+INSERT /*+APPEND*/ INTO ""Hashes""
+SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key"";
+COMMIT;
+DELETE FROM ORA$PTT_hashes;
+END;";
 				cmd.ExecuteNonQuery();
-
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
