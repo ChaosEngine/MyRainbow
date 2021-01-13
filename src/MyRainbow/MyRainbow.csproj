@@ -51,7 +51,7 @@
 		<PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.13.1" />
 		<PackageReference Include="MongoDB.Driver" Version="2.11.5" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.16.1" />
-		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="2.19.100" />
+		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="2.19.101" />
 		<PackageReference Include="MySqlConnector" Version="1.2.1" />
 		<PackageReference Include="Npgsql" Version="5.0.1.1" />
 		<PackageReference Include="StackExchange.Redis" Version="2.2.4" />
