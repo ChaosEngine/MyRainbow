@@ -346,13 +346,13 @@ namespace MyRainbow
 				Console.WriteLine("Keys generated");
 
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
 				Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
 					+ $@"/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}"
 					+ $@"/SqlConnection='...' or /MySQL='...' or /Sqlite='Filename=./database.db' or /[other db connection]='...'");
 				Console.ReadKey();
-				throw ex;
+				throw;
 			}
 			using (_hasherMD5 = MD5.Create())
 			using (_hasherSHA256 = SHA256.Create())
