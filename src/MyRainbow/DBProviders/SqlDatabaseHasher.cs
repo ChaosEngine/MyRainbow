@@ -86,14 +86,13 @@ namespace MyRainbow.DBProviders
 			long counter = 0, last_pause_counter = 0, tps = 0;
 			var tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted) as SqlTransaction;
 			SqlCommand cmd = new SqlCommand("", Conn, tran);
-			cmd.CommandType = System.Data.CommandType.Text;
+			cmd.CommandType = CommandType.Text;
 			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"insert into hashes([key], hashMD5, hashSHA256)" +

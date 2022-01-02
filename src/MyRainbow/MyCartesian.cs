@@ -6,7 +6,7 @@ namespace MyRainbow
 {
 	class MyCartesian
 	{
-		private const string _longAlphabet = @"abcdefghijklmnopqrstuvwxyz0123456789";
+		//private const string _longAlphabet = @"abcdefghijklmnopqrstuvwxyz0123456789";
 		private const string _smallAlphabet = @"abcd";
 
 		public string Alphabet { get; private set; }

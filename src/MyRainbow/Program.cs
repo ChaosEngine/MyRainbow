@@ -12,8 +12,8 @@ namespace MyRainbow
 	{
 		private IEnumerable<IEnumerable<char>> _tableOfTableOfChars;
 		private MD5 _hasherMD5;
-		private Stopwatch _stopwatch;
 		private SHA256 _hasherSHA256;
+		private Stopwatch _stopwatch;
 		private bool _purge;
 		private bool _interrupted;
 

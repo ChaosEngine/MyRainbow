@@ -83,8 +83,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			{
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"insert into hashes([key], hashMD5, hashSHA256)" +
@@ -205,7 +204,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 		{
 			using (var cmd = new SqliteCommand("DELETE FROM hashes", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.CommandType = CommandType.Text;
 				await cmd.ExecuteNonQueryAsync();
 			}
 		}

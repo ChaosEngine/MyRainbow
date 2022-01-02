@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
-	internal class OracleHasher : IDbHasher, IDisposable
+	internal class OracleHasher : DbHasher, IDisposable
 	{
 		private OracleConnection Conn { get; set; }
 		private OracleTransaction Tran { get; set; }
@@ -22,7 +22,7 @@ namespace MyRainbow.DBProviders
 			Tran = null;
 		}
 
-		public async Task EnsureExist()
+		public override async Task EnsureExist()
 		{
 			try
 			{
@@ -74,7 +74,7 @@ END;
 			}
 		}
 
-		public async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20_000)
 		{
@@ -111,8 +111,7 @@ ON COMMIT PRESERVE DEFINITION", Conn)
 			{
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"INSERT /*+APPEND*/ INTO ORA$PTT_hashes(\"Key\", \"hashMD5\", \"hashSHA256\")" +
@@ -239,7 +238,7 @@ END;";
 			}
 		}
 
-		public async Task<string> GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			var sql = "SELECT * from (SELECT \"Key\" FROM \"Hashes\" ORDER BY \"Key\" DESC) WHERE rownum = 1";
 			using (var cmd = new OracleCommand(sql, Conn/*, Tran*/))
@@ -251,7 +250,7 @@ END;";
 			}
 		}
 
-		public async Task PostGenerateExecute()
+		public override async Task PostGenerateExecute()
 		{
 			string table_name = "Hashes";
 
@@ -287,7 +286,7 @@ END;
 			Console.WriteLine("done");
 		}
 
-		public async Task Purge()
+		public override async Task Purge()
 		{
 			using (var cmd = new OracleCommand("truncate table \"Hashes\"", Conn/*, Tran*/))
 			{
@@ -297,7 +296,7 @@ END;
 			}
 		}
 
-		public async Task Verify()
+		public override async Task Verify()
 		{
 			using (var cmd = new OracleCommand("SELECT * FROM \"Hashes\" WHERE \"hashMD5\" = :hashMD5", Conn/*, Tran*/))
 			{

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace MyRainbow
@@ -16,6 +17,7 @@ namespace MyRainbow
 		Task Purge();
 		Task Verify();
 		Task PostGenerateExecute();
+		public (string, string) CalculateTwoHashes(MD5 hasherMD5, SHA256 hasherSHA256, string key);
 	}
 
 	internal abstract class DbHasher : IDbHasher
@@ -36,6 +38,15 @@ namespace MyRainbow
 		{
 			//empty method implementation
 			return Task.CompletedTask;
+		}
+
+		public (string, string) CalculateTwoHashes(MD5 hasherMD5, SHA256 hasherSHA256, string key)
+		{
+			var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key)))
+				.Replace("-", "").ToLowerInvariant();
+			var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key)))
+				.Replace("-", "").ToLowerInvariant();
+			return (hashMD5, hashSHA256);
 		}
 	}
 }
