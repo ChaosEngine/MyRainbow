@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -44,7 +45,7 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			var key = "myKey";
 			var message = "Hello, World!";
@@ -54,11 +55,11 @@ namespace MyRainbow.DBProviders
 			var dbase = Cache.GetDatabase();
 
 			Console.WriteLine($"Setting value '{message}' in cache");
-			dbase.StringSet(key, value);
+			await dbase.StringSetAsync(key, value);
 			Console.WriteLine("Set");
 
 			Console.WriteLine("Getting value from cache");
-			value = dbase.StringGet(key);
+			value = await dbase.StringGetAsync(key);
 			if (value != null)
 			{
 				Console.WriteLine("Retrieved: " + Encoding.UTF8.GetString(value));
@@ -69,7 +70,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 2000/*0*/)
 		{
@@ -91,8 +92,8 @@ namespace MyRainbow.DBProviders
 				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
 
 				//work
-				dbase.StringSet($"MD5_{hashMD5}", key);
-				dbase.StringSet($"SHA256_{hashSHA256}", key);
+				await dbase.StringSetAsync($"MD5_{hashMD5}", key);
+				await dbase.StringSetAsync($"SHA256_{hashSHA256}", key);
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
@@ -114,19 +115,20 @@ namespace MyRainbow.DBProviders
 			}//end foreach
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			var dbase = Cache.GetDatabase();
 
-			var r_val = dbase.StringGet("MD5_" + "9409135542c79d1ed50c9fde07fa600a");
+			var r_val = await dbase.StringGetAsync("MD5_" + "9409135542c79d1ed50c9fde07fa600a");
 		}
 
-		public override void Purge()
+		public override Task Purge()
 		{
 			//Cache.GetDatabase().remove
+			return Task.CompletedTask;
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			throw new NotImplementedException();
 		}

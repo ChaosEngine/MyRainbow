@@ -22,7 +22,7 @@ namespace MyRainbow.DBProviders
 			Tran = null;
 		}
 
-		public void EnsureExist()
+		public async Task EnsureExist()
 		{
 			try
 			{
@@ -65,7 +65,7 @@ END;
 				{
 					cmd.Transaction = Tran;
 					cmd.CommandType = CommandType.Text;
-					cmd.ExecuteNonQuery();
+					await cmd.ExecuteNonQueryAsync();
 				}
 			}
 			catch (Exception)
@@ -74,11 +74,11 @@ END;
 			}
 		}
 
-		public void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20_000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -87,7 +87,7 @@ END;
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1_000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
+			var tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadCommitted) as OracleTransaction;
 			OracleCommand cmd = new OracleCommand(@"
 CREATE PRIVATE TEMPORARY TABLE ORA$PTT_hashes
 (
@@ -97,13 +97,13 @@ CREATE PRIVATE TEMPORARY TABLE ORA$PTT_hashes
 )
 ON COMMIT PRESERVE DEFINITION", Conn)
 			{
-				CommandType = System.Data.CommandType.Text,
+				CommandType = CommandType.Text,
 				Transaction = tran
 			};
-			cmd.ExecuteNonQuery();
+			await cmd.ExecuteNonQueryAsync();
 			cmd = new OracleCommand("", Conn)
 			{
-				CommandType = System.Data.CommandType.Text,
+				CommandType = CommandType.Text,
 				Transaction = tran
 			};
 			int param_counter = 0;
@@ -164,12 +164,12 @@ SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key""
 COMMIT;
 DELETE FROM ORA$PTT_hashes;
 END;";
-					cmd.ExecuteNonQuery();
+					await cmd.ExecuteNonQueryAsync();
 					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd = new OracleCommand("", Conn)
 					{
-						CommandType = System.Data.CommandType.Text,
+						CommandType = CommandType.Text,
 						Transaction = tran
 					};
 					param_counter = 0;
@@ -186,17 +186,17 @@ SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key""
 COMMIT;
 DELETE FROM ORA$PTT_hashes;
 END;";
-						cmd.ExecuteNonQuery();
+						await cmd.ExecuteNonQueryAsync();
 						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd = new OracleCommand("", Conn)
 						{
-							CommandType = System.Data.CommandType.Text,
+							CommandType = CommandType.Text,
 							Transaction = tran
 						};
 						param_counter = 0;
 					}
-					tran.Commit(); tran.Dispose();
+					await tran.CommitAsync(); tran.Dispose();
 					tran = null;
 
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
@@ -205,7 +205,7 @@ END;";
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadCommitted);
+					cmd.Transaction = tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadCommitted) as OracleTransaction;
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -229,29 +229,29 @@ SELECT ""Key"", ""hashMD5"", ""hashSHA256"" FROM ORA$PTT_hashes ORDER BY ""Key""
 COMMIT;
 DELETE FROM ORA$PTT_hashes;
 END;";
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
 			{
-				tran.Commit(); tran.Dispose();
+				await tran.CommitAsync(); tran.Dispose();
 			}
 		}
 
-		public string GetLastKeyEntry()
+		public async Task<string> GetLastKeyEntry()
 		{
 			var sql = "SELECT * from (SELECT \"Key\" FROM \"Hashes\" ORDER BY \"Key\" DESC) WHERE rownum = 1";
 			using (var cmd = new OracleCommand(sql, Conn/*, Tran*/))
 			{
 				cmd.Transaction = Tran;
 				cmd.CommandType = CommandType.Text;
-				var str = cmd.ExecuteScalar();
+				var str = await cmd.ExecuteScalarAsync();
 				return str == null ? null : (string)str;
 			}
 		}
 
-		public void PostGenerateExecute()
+		public async Task PostGenerateExecute()
 		{
 			string table_name = "Hashes";
 
@@ -282,22 +282,22 @@ END;
 				cmd.Transaction = Tran;
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 			Console.WriteLine("done");
 		}
 
-		public void Purge()
+		public async Task Purge()
 		{
 			using (var cmd = new OracleCommand("truncate table \"Hashes\"", Conn/*, Tran*/))
 			{
 				cmd.Transaction = Tran;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public void Verify()
+		public async Task Verify()
 		{
 			using (var cmd = new OracleCommand("SELECT * FROM \"Hashes\" WHERE \"hashMD5\" = :hashMD5", Conn/*, Tran*/))
 			{
@@ -311,9 +311,9 @@ END;
 					Value = "b25319faaaea0bf397b2bed872b78c45"
 				};
 				cmd.Parameters.Add(param_key);
-				using (var rdr = cmd.ExecuteReader())
+				using (var rdr = await cmd.ExecuteReaderAsync())
 				{
-					while (rdr.Read())
+					while (await rdr.ReadAsync())
 					{
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["Key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}

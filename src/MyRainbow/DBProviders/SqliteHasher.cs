@@ -5,6 +5,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -41,7 +42,7 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			string table_name = "hashes";
 
@@ -57,15 +58,15 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			using (var cmd = new SqliteCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, 
 			Stopwatch stopwatch = null, int batchInsertCount = 50, int batchTransactionCommitCount = 200)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -74,7 +75,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction();
+			var tran = await Conn.BeginTransactionAsync() as SqliteTransaction;
 			SqliteCommand cmd = new SqliteCommand("", Conn, tran);
 			cmd.CommandType = CommandType.Text;
 			int param_counter = 0;
@@ -130,7 +131,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 				if (counter % batchInsertCount == 0)
 				{
 					//cmd.Prepare();
-					cmd.ExecuteNonQuery();
+					await cmd.ExecuteNonQueryAsync();
 					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd.CommandText = "";
@@ -144,7 +145,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
 					{
 						//cmd.Prepare();
-						cmd.ExecuteNonQuery();
+						await cmd.ExecuteNonQueryAsync();
 						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd.CommandText = "";
@@ -152,7 +153,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 						cmd.Transaction = tran;
 						param_counter = 0;
 					}
-					tran.Commit(); tran.Dispose();
+					await tran.CommitAsync(); tran.Dispose();
 					tran = null;
 
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
@@ -161,7 +162,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction();
+					cmd.Transaction = tran = await Conn.BeginTransactionAsync() as SqliteTransaction;
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -180,47 +181,47 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
 			{
 				//cmd.Prepare();
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
 			{
-				tran.Commit(); tran.Dispose();
+				await tran.CommitAsync(); tran.Dispose();
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			using (var cmd = new SqliteCommand("SELECT [key] FROM hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				var str = cmd.ExecuteScalar();
+				var str = await cmd.ExecuteScalarAsync();
 				return str == null ? null : (string)str;
 			}
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			using (var cmd = new SqliteCommand("DELETE FROM hashes", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			using (var cmd = new SqliteCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.CommandType = CommandType.Text;
 
 				var param_key = new SqliteParameter("@hashMD5", SqliteType.Text, 32);
 				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
 				cmd.Parameters.Add(param_key);
-				using (var rdr = cmd.ExecuteReader())
+				using (var rdr = await cmd.ExecuteReaderAsync())
 				{
-					while (rdr.Read())
+					while (await rdr.ReadAsync())
 					{
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
@@ -228,7 +229,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			}
 		}
 
-		public override void PostGenerateExecute()
+		public override async Task PostGenerateExecute()
 		{
 			string table_name = "hashes";
 
@@ -241,7 +242,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON {table_name}(hashSHA256);"*/;
 			{
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 			Console.WriteLine("done");
 		}

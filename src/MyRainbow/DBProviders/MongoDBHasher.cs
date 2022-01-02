@@ -45,7 +45,7 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			var database = Cache.GetDatabase("test");
 			var collection = database.GetCollection<BsonDocument>("hashes");
@@ -61,18 +61,18 @@ namespace MyRainbow.DBProviders
 			};
 			collection.Indexes.CreateOne(ind_def);*/
 
-			var idxes = collection.Indexes.ListAsync();
-			foreach (var idx in idxes.Result.ToEnumerable())
+			var idxes = await collection.Indexes.ListAsync();
+			foreach (var idx in idxes.ToEnumerable())
 			{
 				Console.WriteLine($"index {idx}");
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
-			string last_key_entry = GetLastKeyEntryAsync().Result;
+			string last_key_entry = await GetLastKeyEntryAsync();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -97,11 +97,11 @@ namespace MyRainbow.DBProviders
 
 					//work
 					var doc = new BsonDocument
-				{
-					{ "key", key },
-					{ "MD5", hashMD5 },
-					{ "SHA256", hashSHA256 }
-				};
+					{
+						{ "key", key },
+						{ "MD5", hashMD5 },
+						{ "SHA256", hashSHA256 }
+					};
 					//collection.InsertOne(doc);
 					//if (models.ElementAtOrDefault(param_counter) == null)
 					models.Add(new InsertOneModel<BsonDocument>(doc));
@@ -114,7 +114,7 @@ namespace MyRainbow.DBProviders
 					{
 						if (models.Count > 0)
 						{
-							collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
+							await collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
 							models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
 							//param_counter = 0;
 						}
@@ -140,11 +140,11 @@ namespace MyRainbow.DBProviders
 				}//end foreach
 
 				if (models.Count > 0)
-					collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
+					await collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
 			}
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			var dbase = Cache.GetDatabase("test");
 			var collection = dbase.GetCollection<BsonDocument>("hashes");
@@ -155,12 +155,12 @@ namespace MyRainbow.DBProviders
 
 			var filter = Builders<BsonDocument>.Filter.Eq("MD5", "b25319faaaea0bf397b2bed872b78c45");
 			var task = collection.FindAsync(filter);//.ToCursor();
-			task.ContinueWith(async (firstTask) =>
+			await task.ContinueWith(async (firstTask) =>
 			{
 				var count = await collection.CountDocumentsAsync(new BsonDocument());
 
 				Console.WriteLine($"count = {count}");
-				var cursor = firstTask.Result;
+				var cursor = await firstTask;
 				foreach (var document in cursor.ToEnumerable())
 				{
 					Console.WriteLine(document);
@@ -184,15 +184,15 @@ namespace MyRainbow.DBProviders
 			return str;
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
-			return GetLastKeyEntryAsync().Result;
+			return await GetLastKeyEntryAsync();
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			var dbase = Cache.GetDatabase("test");
-			dbase.GetCollection<BsonDocument>("hashes").DeleteManyAsync(new BsonDocument()).Wait();
+			await dbase.GetCollection<BsonDocument>("hashes").DeleteManyAsync(new BsonDocument());
 		}
 
 		#endregion Implementation

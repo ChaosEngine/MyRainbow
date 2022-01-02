@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -98,7 +99,7 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			string table_name = "Hashes";
 
@@ -111,15 +112,15 @@ namespace MyRainbow.DBProviders
 			using (var cmd = new NpgsqlCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -128,7 +129,7 @@ namespace MyRainbow.DBProviders
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted) as NpgsqlTransaction;
+			var tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted) as NpgsqlTransaction;
 			string insert_into = "INSERT INTO \"Hashes\"(\"Key\", \"hashMD5\", \"hashSHA256\") VALUES";
 			NpgsqlCommand cmd = new NpgsqlCommand("", Conn, tran);
 			cmd.CommandType = CommandType.Text;
@@ -197,8 +198,8 @@ namespace MyRainbow.DBProviders
 				if (counter % batchInsertCount == 0)
 				{
 					cmd.CommandText += ";";
-					cmd.Prepare();
-					cmd.ExecuteNonQuery();
+					await cmd.PrepareAsync();
+					await cmd.ExecuteNonQueryAsync();
 					//cmd.Parameters.Clear();
 					//cmd.Dispose();
 					//cmd = new NpgsqlCommand("", Conn, tran);
@@ -215,7 +216,7 @@ namespace MyRainbow.DBProviders
 					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 					{
 						cmd.CommandText += ";";
-						cmd.ExecuteNonQuery();
+						await cmd.ExecuteNonQueryAsync();
 						//cmd.Parameters.Clear();
 						//cmd.Dispose();
 						//cmd = new NpgsqlCommand("", Conn, tran);
@@ -226,7 +227,7 @@ namespace MyRainbow.DBProviders
 						param_counter = 0;
 						comma = "";
 					}
-					tran.Commit(); tran.Dispose();
+					await tran.CommitAsync(); tran.Dispose();
 					tran = null;
 
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
@@ -235,7 +236,7 @@ namespace MyRainbow.DBProviders
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(IsolationLevel.ReadUncommitted) as NpgsqlTransaction;
+					cmd.Transaction = tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted) as NpgsqlTransaction;
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -254,40 +255,40 @@ namespace MyRainbow.DBProviders
 			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 			{
 				cmd.CommandText += ";";
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
 			{
-				tran.Commit(); tran.Dispose();
+				await tran.CommitAsync(); tran.Dispose();
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			using (var cmd = new NpgsqlCommand("SELECT \"Key\" FROM \"Hashes\" ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				var str = cmd.ExecuteScalar();
+				var str = await cmd.ExecuteScalarAsync();
 				return str == null ? null : (string)str;
 			}
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			using (var cmd = new NpgsqlCommand("truncate table \"Hashes\"", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			using (var cmd = new NpgsqlCommand("SELECT * FROM \"Hashes\" WHERE \"hashMD5\" = @hashMD5", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.CommandType = CommandType.Text;
 
 				var param_key = new NpgsqlParameter();
 				param_key.ParameterName = "@hashMD5";
@@ -295,9 +296,9 @@ namespace MyRainbow.DBProviders
 				param_key.Size = 32;
 				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
 				cmd.Parameters.Add(param_key);
-				using (var rdr = cmd.ExecuteReader())
+				using (var rdr = await cmd.ExecuteReaderAsync())
 				{
-					while (rdr.Read())
+					while (await rdr.ReadAsync())
 					{
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["Key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
@@ -305,7 +306,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		public override void PostGenerateExecute()
+		public override async Task PostGenerateExecute()
 		{
 			string table_name = "Hashes";
 
@@ -323,7 +324,7 @@ CREATE INDEX IF NOT EXISTS IX_SHA256 ON ""{table_name}"" (""hashSHA256"");
 			{
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 			Console.WriteLine("done");
 		}

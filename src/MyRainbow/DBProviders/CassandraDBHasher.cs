@@ -43,22 +43,22 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			ISession session = Cache.Connect("test");
 			//session.CreateKeyspaceIfNotExists("test");
 			//session.ChangeKeyspace("test");
 
-			session.Execute("drop table hashes");
-			session.Execute(
+			await session.ExecuteAsync(new SimpleStatement("drop table hashes"));
+			await session.ExecuteAsync(new SimpleStatement(
 				@"CREATE TABLE IF NOT EXISTS hashes(
 				   id int,
 				   key varchar,
 				   MD5 varchar,
 				   SHA256 varchar,
 						PRIMARY KEY(id)
-				   )");
-			session.Execute("CREATE INDEX ON hashes(key);");
+				   )"));
+			await session.ExecuteAsync(new SimpleStatement("CREATE INDEX ON hashes(key);"));
 
 			/*
 			 * 
@@ -80,11 +80,11 @@ namespace MyRainbow.DBProviders
 			//Console.WriteLine("{0} {1} {2}", result["key"], result["md5"], result["sha256"]);
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -94,7 +94,7 @@ namespace MyRainbow.DBProviders
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
 
-			var dbase = Cache.Connect("test");
+			var dbase = await Cache.ConnectAsync("test");
 			var profileStmt = dbase.Prepare("INSERT INTO hashes(id, key, MD5, SHA256) VALUES (?, ?, ?, ?)");
 			var batch = new BatchStatement();
 
@@ -117,7 +117,7 @@ namespace MyRainbow.DBProviders
 
 					if (counter % batchTransactionCommitCount == 0)
 					{
-						dbase.Execute(batch);
+						await dbase.ExecuteAsync(batch);
 						batch = new BatchStatement();
 
 						if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
@@ -141,29 +141,30 @@ namespace MyRainbow.DBProviders
 				}//end foreach
 
 				if (!batch.IsEmpty)
-					dbase.Execute(batch);
+					await dbase.ExecuteAsync(batch);
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
-			ISession session = Cache.Connect("test");
-			Row result = session.Execute("SELECT * FROM hashes ORDER BY id DESC limit 1").First();
+			ISession session = await Cache.ConnectAsync("test");
+			Row result = (await session.ExecuteAsync(new SimpleStatement("SELECT * FROM hashes ORDER BY id DESC limit 1"))).First();
 			if (result != null)
 				return result["key"].ToString();
 			return null;
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			ISession session = Cache.Connect("test");
 			// Delete Bob, then try to read all users and print them to the console
-			session.Execute("TRUNCATE TABLE hashes");
+			await session.ExecuteAsync(new SimpleStatement("TRUNCATE TABLE hashes"));
 		}
 
-		public override void Verify()
+		public override Task Verify()
 		{
 			//TODO: implement
+			return Task.CompletedTask;
 		}
 
 		#endregion Implementation

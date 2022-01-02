@@ -72,25 +72,25 @@ namespace MyRainbow.DBProviders
 		}
 		#endregion IDisposable Support
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
-			_db.Initialize();
+			await _db.Initialize();
 
 
 			string scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkDelete.js";
 			string scriptName = "bulkDelete.js";
-			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
+			await _db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName);
 
 			scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkImport.js";
 			scriptName = "bulkImport.js";
-			_db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName).Wait();
+			await _db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName);
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 1_000, int batchTransactionCommitCount = 5_000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -123,8 +123,7 @@ namespace MyRainbow.DBProviders
 
 				if (counter % batchTransactionCommitCount == 0)
 				{
-					var job = _db.InvokeBulkInsertSproc(documents);
-					job.Wait();
+					var job = await _db.InvokeBulkInsertSproc(documents);
 					documents.Clear();
 
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
@@ -146,17 +145,15 @@ namespace MyRainbow.DBProviders
 
 			if (documents.Count > 0)
 			{
-				var job = _db.InvokeBulkInsertSproc(documents);
-				job.Wait();
+				var job = await _db.InvokeBulkInsertSproc(documents);
 				documents.Clear();
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
-			var job = GetLastKeyEntryAsync();
-			job.Wait();
-			return job.Result;
+			var job = await GetLastKeyEntryAsync();
+			return job;
 		}
 
 		public async Task<string> GetLastKeyEntryAsync()
@@ -169,17 +166,15 @@ namespace MyRainbow.DBProviders
 				return el.Key;
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
-			var job = _db.InvokeBulkDeleteSproc();
-			job.Wait();
+			await _db.InvokeBulkDeleteSproc();
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
-			var job = _db.GetItemsAsync(d => d.HashMD5 == "b25319faaaea0bf397b2bed872b78c45");
-			job.Wait();
-			var lst = job.Result;
+			var job_task = _db.GetItemsAsync(d => d.HashMD5 == "b25319faaaea0bf397b2bed872b78c45");
+			var lst = await job_task;
 			foreach (DocumentDBHash rdr in lst)
 			{
 				Console.WriteLine("key={0} md5={1} sha256={2}", rdr.Key, rdr.HashMD5, rdr.HashSHA256);
@@ -215,11 +210,11 @@ namespace MyRainbow.DBProviders
 			transactionId = Guid.NewGuid();
 		}
 
-		public override void Initialize()
+		public override async Task Initialize()
 		{
 			_client = new DocumentClient(new Uri(_endpoint), _key);
-			CreateDatabaseIfNotExistsAsync().Wait();
-			CreateCollectionIfNotExistsAsync(new DocumentCollection
+			await CreateDatabaseIfNotExistsAsync();
+			await CreateCollectionIfNotExistsAsync(new DocumentCollection
 			{
 				Id = _collectionId,
 				//myCollection.PartitionKey.Paths.Add("/Key"),
@@ -231,7 +226,7 @@ namespace MyRainbow.DBProviders
 					}
 				},
 				IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 }),
-			}).Wait();
+			});
 		}
 
 		public async Task<IEnumerable<DocumentDBHash>> GetItemsSortedDescByKeyAsync(int itemsCount = -1)
@@ -413,7 +408,7 @@ namespace MyRainbow.DBProviders
 			await _client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
 		}
 
-		public abstract void Initialize();
+		public abstract Task Initialize();
 
 		public void Cleanup()
 		{
