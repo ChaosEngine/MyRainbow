@@ -1,18 +1,18 @@
-﻿using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
-using Microsoft.Azure.Documents;
+﻿using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
-using System.Linq.Expressions;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-using System.Text;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -185,18 +185,6 @@ namespace MyRainbow.DBProviders
 	{
 		[JsonProperty(PropertyName = "id")]
 		public string Id { get; set; }
-	}
-
-	public class ThinHashes
-	{
-		//[JsonProperty(PropertyName = "Key")]
-		public string Key { get; set; }
-
-		//[JsonProperty(PropertyName = "HashMD5")]
-		public string HashMD5 { get; set; }
-
-		//[JsonProperty(PropertyName = "HashSHA256")]
-		public string HashSHA256 { get; set; }
 	}
 
 	class ThinHashesDocumentDBRepository : DocumentDBRepository<DocumentDBHash>
