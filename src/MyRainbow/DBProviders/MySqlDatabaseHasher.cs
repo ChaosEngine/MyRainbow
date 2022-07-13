@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -42,7 +43,7 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			string table_name = "Hashes";
 
@@ -58,15 +59,15 @@ namespace MyRainbow.DBProviders
 			using (var cmd = new MySqlCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -75,7 +76,7 @@ namespace MyRainbow.DBProviders
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted) as MySqlTransaction;
+			var tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted);
 			string insert_into = "INSERT INTO Hashes(`Key`, hashMD5, hashSHA256) VALUES";
 			MySqlCommand cmd = new MySqlCommand("", Conn, tran);
 			cmd.CommandType = CommandType.Text;
@@ -86,8 +87,7 @@ namespace MyRainbow.DBProviders
 			{
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"{comma}(@Key{param_counter}, @hashMD5{param_counter}, @hashSHA256{param_counter}){Environment.NewLine}";
@@ -95,7 +95,7 @@ namespace MyRainbow.DBProviders
 				MySqlParameter param;
 				if (cmd.Parameters.Contains($"@Key{param_counter}"))
 				{
-					param = cmd.Parameters[$"@Key{param_counter}"] as MySqlParameter;
+					param = cmd.Parameters[$"@Key{param_counter}"];
 					param.Value = key;
 				}
 				else
@@ -110,7 +110,7 @@ namespace MyRainbow.DBProviders
 
 				if (cmd.Parameters.Contains($"@hashMD5{param_counter}"))
 				{
-					param = cmd.Parameters[$"@hashMD5{param_counter}"] as MySqlParameter;
+					param = cmd.Parameters[$"@hashMD5{param_counter}"];
 					param.Value = hashMD5;
 				}
 				else
@@ -143,11 +143,11 @@ namespace MyRainbow.DBProviders
 				if (counter % batchInsertCount == 0)
 				{
 					cmd.CommandText += ";";
-					cmd.ExecuteNonQuery();
+					await cmd.ExecuteNonQueryAsync();
 					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd = new MySqlCommand("", Conn, tran);
-					cmd.CommandType = System.Data.CommandType.Text;
+					cmd.CommandType = CommandType.Text;
 					cmd.CommandText = insert_into;
 					cmd.Connection = Conn;
 					cmd.Transaction = tran;
@@ -160,18 +160,18 @@ namespace MyRainbow.DBProviders
 					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 					{
 						cmd.CommandText += ";";
-						cmd.ExecuteNonQuery();
+						await cmd.ExecuteNonQueryAsync();
 						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd = new MySqlCommand("", Conn, tran);
-						cmd.CommandType = System.Data.CommandType.Text;
+						cmd.CommandType = CommandType.Text;
 						cmd.CommandText = insert_into;
 						cmd.Connection = Conn;
 						cmd.Transaction = tran;
 						param_counter = 0;
 						comma = "";
 					}
-					tran.Commit(); tran.Dispose();
+					await tran.CommitAsync(); tran.Dispose();
 					tran = null;
 
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
@@ -180,7 +180,7 @@ namespace MyRainbow.DBProviders
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(IsolationLevel.ReadUncommitted) as MySqlTransaction;
+					cmd.Transaction = tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted);
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -199,40 +199,40 @@ namespace MyRainbow.DBProviders
 			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandText != insert_into)
 			{
 				cmd.CommandText += ";";
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
 			{
-				tran.Commit(); tran.Dispose();
+				await tran.CommitAsync(); tran.Dispose();
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			using (var cmd = new MySqlCommand("SELECT `Key` FROM Hashes ORDER BY 1 DESC LIMIT 1", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				var str = cmd.ExecuteScalar();
+				var str = await cmd.ExecuteScalarAsync();
 				return str == null ? null : (string)str;
 			}
 		}
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			using (var cmd = new MySqlCommand("truncate table Hashes", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			using (var cmd = new MySqlCommand("SELECT * FROM Hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.CommandType = CommandType.Text;
 
 				var param_key = new MySqlParameter();
 				param_key.ParameterName = "@hashMD5";
@@ -240,9 +240,9 @@ namespace MyRainbow.DBProviders
 				param_key.Size = 32;
 				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
 				cmd.Parameters.Add(param_key);
-				using (var rdr = cmd.ExecuteReader())
+				using (var rdr = await cmd.ExecuteReaderAsync())
 				{
-					while (rdr.Read())
+					while (await rdr.ReadAsync())
 					{
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["Key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
@@ -250,7 +250,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		public override void PostGenerateExecute()
+		public override async Task PostGenerateExecute()
 		{
 			string table_name = "Hashes";
 
@@ -284,7 +284,7 @@ DEALLOCATE PREPARE stmt1;";
 			{
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 			Console.WriteLine("done");
 		}

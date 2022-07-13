@@ -5,6 +5,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
@@ -24,16 +25,16 @@ namespace MyRainbow.DBProviders
 
 		#region Implementation
 
-		public override void Purge()
+		public override async Task Purge()
 		{
 			using (var cmd = new SqlCommand("truncate table hashes", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
-				cmd.ExecuteNonQuery();
+				cmd.CommandType = CommandType.Text;
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			string table_name = "hashes";
 
@@ -66,15 +67,15 @@ namespace MyRainbow.DBProviders
 			using (var cmd = new SqlCommand(cmd_text, Conn, Tran))
 			{
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20_000)
 		{
-			string last_key_entry = GetLastKeyEntry();
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -83,16 +84,15 @@ namespace MyRainbow.DBProviders
 				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1_000;//next check after 1sec
 			}
 			long counter = 0, last_pause_counter = 0, tps = 0;
-			var tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+			var tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted) as SqlTransaction;
 			SqlCommand cmd = new SqlCommand("", Conn, tran);
-			cmd.CommandType = System.Data.CommandType.Text;
+			cmd.CommandType = CommandType.Text;
 			int param_counter = 0;
 			foreach (var chars_table in tableOfTableOfChars)
 			{
 				var key = string.Concat(chars_table);
 				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-				var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 				//dbase.Insert(value, hash);
 				cmd.CommandText += $"insert into hashes([key], hashMD5, hashSHA256)" +
@@ -139,7 +139,7 @@ namespace MyRainbow.DBProviders
 				if (counter % batchInsertCount == 0)
 				{
 					//cmd.Prepare();
-					cmd.ExecuteNonQuery();
+					await cmd.ExecuteNonQueryAsync();
 					cmd.Parameters.Clear();
 					cmd.Dispose();
 					cmd.CommandText = "";
@@ -153,7 +153,7 @@ namespace MyRainbow.DBProviders
 					if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
 					{
 						//cmd.Prepare();
-						cmd.ExecuteNonQuery();
+						await cmd.ExecuteNonQueryAsync();
 						cmd.Parameters.Clear();
 						cmd.Dispose();
 						cmd.CommandText = "";
@@ -161,7 +161,7 @@ namespace MyRainbow.DBProviders
 						cmd.Transaction = tran;
 						param_counter = 0;
 					}
-					tran.Commit(); tran.Dispose();
+					await tran.CommitAsync(); tran.Dispose();
 					tran = null;
 
 					//Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
@@ -170,7 +170,7 @@ namespace MyRainbow.DBProviders
 					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
 						break;
 
-					cmd.Transaction = tran = Conn.BeginTransaction(System.Data.IsolationLevel.ReadUncommitted);
+					cmd.Transaction = tran = await Conn.BeginTransactionAsync(IsolationLevel.ReadUncommitted) as SqlTransaction;
 				}
 
 				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
@@ -189,22 +189,22 @@ namespace MyRainbow.DBProviders
 			if (cmd != null && !string.IsNullOrEmpty(cmd.CommandText))
 			{
 				//cmd.Prepare();
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 				cmd.Parameters.Clear();
 				cmd.Dispose();
 			}
 			if (tran != null)
 			{
-				tran.Commit(); tran.Dispose();
+				await tran.CommitAsync(); tran.Dispose();
 			}
 		}
 
-		public override string GetLastKeyEntry()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			using (var cmd = new SqlCommand("SELECT TOP (1) [key] FROM [hashes] ORDER BY 1 desc", Conn, Tran))
 			{
 				cmd.CommandType = System.Data.CommandType.Text;
-				var str = cmd.ExecuteScalar();
+				var str = await cmd.ExecuteScalarAsync();
 				return str == null ? null : (string)str;
 			}
 		}
@@ -230,18 +230,18 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			using (var cmd = new SqlCommand("SELECT * FROM hashes WHERE hashMD5 = @hashMD5", Conn, Tran))
 			{
-				cmd.CommandType = System.Data.CommandType.Text;
+				cmd.CommandType = CommandType.Text;
 
 				var param_key = new SqlParameter("@hashMD5", System.Data.SqlDbType.Char, 32);
 				param_key.Value = "b25319faaaea0bf397b2bed872b78c45";
 				cmd.Parameters.Add(param_key);
-				using (var rdr = cmd.ExecuteReader())
+				using (var rdr = await cmd.ExecuteReaderAsync())
 				{
-					while (rdr.Read())
+					while (await rdr.ReadAsync())
 					{
 						Console.WriteLine("key={0} md5={1} sha256={2}", rdr["key"], rdr["hashMD5"], rdr["hashSHA256"]);
 					}
@@ -249,7 +249,7 @@ namespace MyRainbow.DBProviders
 			}
 		}
 
-		public override void PostGenerateExecute()
+		public override async Task PostGenerateExecute()
 		{
 			string cmd_text = $@"
 			IF NOT EXISTS(SELECT * FROM sys.indexes WHERE name = 'IX_MD5' AND object_id = OBJECT_ID('hashes'))
@@ -268,7 +268,7 @@ namespace MyRainbow.DBProviders
 			{
 				cmd.CommandTimeout = 0;
 				cmd.CommandType = CommandType.Text;
-				cmd.ExecuteNonQuery();
+				await cmd.ExecuteNonQueryAsync();
 			}
 			Console.WriteLine("done");
 		}

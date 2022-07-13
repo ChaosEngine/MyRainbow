@@ -45,34 +45,23 @@ namespace MyRainbow.DBProviders
 			// free native resources if there are any.
 		}
 
-		public override void EnsureExist()
+		public override async Task EnsureExist()
 		{
 			var database = Cache.GetDatabase("test");
-			var collection = database.GetCollection<BsonDocument>("hashes");
+			var collection = database.GetCollection<ThinHashes>("hashes");
 
-			/*var ind_def = new BsonDocument
-			{
-				{ "MD5", 1 },
-			};
-			collection.Indexes.CreateOne(ind_def);
-			ind_def = new BsonDocument
-			{
-				{ "SHA256", 1 },
-			};
-			collection.Indexes.CreateOne(ind_def);*/
-
-			var idxes = collection.Indexes.ListAsync();
-			foreach (var idx in idxes.Result.ToEnumerable())
+			var idxes = await collection.Indexes.ListAsync();
+			foreach (var idx in idxes.ToEnumerable())
 			{
 				Console.WriteLine($"index {idx}");
 			}
 		}
 
-		public override void Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
 			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
 			int batchInsertCount = 200, int batchTransactionCommitCount = 20000)
 		{
-			string last_key_entry = GetLastKeyEntryAsync().Result;
+			string last_key_entry = await GetLastKeyEntry();
 
 			double? nextPause = null;
 			if (stopwatch != null)
@@ -83,8 +72,8 @@ namespace MyRainbow.DBProviders
 			long counter = 0, last_pause_counter = 0, tps = 0;
 
 			var dbase = Cache.GetDatabase("test");
-			var collection = dbase.GetCollection<BsonDocument>("hashes");
-			var models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
+			var collection = dbase.GetCollection<ThinHashes>("hashes");
+			var models = new List<WriteModel<ThinHashes>>(batchTransactionCommitCount);
 			//int param_counter = 0;
 			using (var canc = new CancellationTokenSource())
 			{
@@ -92,19 +81,18 @@ namespace MyRainbow.DBProviders
 				{
 					var key = string.Concat(chars_table);
 					if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-					var hashMD5 = BitConverter.ToString(hasherMD5.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
-					var hashSHA256 = BitConverter.ToString(hasherSHA256.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+					var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
 
 					//work
-					var doc = new BsonDocument
-				{
-					{ "key", key },
-					{ "MD5", hashMD5 },
-					{ "SHA256", hashSHA256 }
-				};
+					var doc = new ThinHashes
+					{
+						Key = key,
+						HashMD5 = hashMD5,
+						HashSHA256 = hashSHA256
+					};
 					//collection.InsertOne(doc);
 					//if (models.ElementAtOrDefault(param_counter) == null)
-					models.Add(new InsertOneModel<BsonDocument>(doc));
+					models.Add(new InsertOneModel<ThinHashes>(doc));
 					//else
 					//	models[param_counter] = new InsertOneModel<BsonDocument>(doc);
 
@@ -114,8 +102,8 @@ namespace MyRainbow.DBProviders
 					{
 						if (models.Count > 0)
 						{
-							collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
-							models = new List<WriteModel<BsonDocument>>(batchTransactionCommitCount);
+							await collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false }, canc.Token);
+							models.Clear();
 							//param_counter = 0;
 						}
 
@@ -140,59 +128,86 @@ namespace MyRainbow.DBProviders
 				}//end foreach
 
 				if (models.Count > 0)
-					collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
+					await collection.BulkWriteAsync(models, new BulkWriteOptions { IsOrdered = false });
 			}
 		}
 
-		public override void Verify()
+		public override async Task Verify()
 		{
 			var dbase = Cache.GetDatabase("test");
-			var collection = dbase.GetCollection<BsonDocument>("hashes");
+			var collection = dbase.GetCollection<ThinHashes>("hashes");
 
 			//echo -n "gdg" | md5sum - 9409135542c79d1ed50c9fde07fa600a
 			//var r_val = dbase.StringGet("MD5_" + "9409135542c79d1ed50c9fde07fa600a");
 			//echo -n "ilfad" | md5sum - b25319faaaea0bf397b2bed872b78c45
 
-			var filter = Builders<BsonDocument>.Filter.Eq("MD5", "b25319faaaea0bf397b2bed872b78c45");
-			var task = collection.FindAsync(filter);//.ToCursor();
-			task.ContinueWith(async (firstTask) =>
+			var filter = Builders<ThinHashes>.Filter.Eq(p => p.HashMD5, "b25319faaaea0bf397b2bed872b78c45");
+			var count_task = collection.CountDocumentsAsync(new BsonDocument());
+			var find_task = collection.FindAsync(filter);
+			await Task.WhenAll(find_task, count_task).ContinueWith((firstTask) =>
 			{
-				var count = await collection.CountDocumentsAsync(new BsonDocument());
-
-				Console.WriteLine($"count = {count}");
-				var cursor = firstTask.Result;
-				foreach (var document in cursor.ToEnumerable())
+				Console.WriteLine($"count = {count_task.Result}");
+				var cursor = find_task.Result;
+				foreach (var d in cursor.ToEnumerable())
 				{
-					Console.WriteLine(document);
+					Console.WriteLine($"MD5({d.Key})={d.HashMD5},SHA256({d.Key})={d.HashSHA256}");
 				}
 			});
 		}
 
-		private async Task<string> GetLastKeyEntryAsync()
+		public override async Task<string> GetLastKeyEntry()
 		{
 			var dbase = Cache.GetDatabase("test");
-			var collection = dbase.GetCollection<BsonDocument>("hashes");
+			var collection = dbase.GetCollection<ThinHashes>("hashes");
 			var count = await collection.CountDocumentsAsync(new BsonDocument());
 			if (count <= 0)
 				return null;
 
-			var filter = Builders<BsonDocument>.Filter.Exists("key");
-			var sort = Builders<BsonDocument>.Sort.Descending("key");
+			var filter = Builders<ThinHashes>.Filter.Exists(p => p.Key);
+			var sort = Builders<ThinHashes>.Sort.Descending(p => p.Key);
 			var document = await collection.Find(filter).Sort(sort).FirstAsync();
 
-			var str = document.GetValue("key").AsString;
+			var str = document.Key;
 			return str;
 		}
 
-		public override string GetLastKeyEntry()
-		{
-			return GetLastKeyEntryAsync().Result;
-		}
-
-		public override void Purge()
+		public override async Task Purge()
 		{
 			var dbase = Cache.GetDatabase("test");
-			dbase.GetCollection<BsonDocument>("hashes").DeleteManyAsync(new BsonDocument()).Wait();
+			await dbase.GetCollection<BsonDocument>("hashes").DeleteManyAsync(new BsonDocument());
+		}
+
+		public override async Task PostGenerateExecute()
+		{
+			var database = Cache.GetDatabase("test");
+			var collection = database.GetCollection<ThinHashes>("hashes");
+
+			//var ind_def = new BsonDocument
+			//{
+			//	{ "MD5", 1 },
+			//};
+			//await collection.Indexes.CreateOneAsync(ind_def);
+			//ind_def = new BsonDocument
+			//{
+			//	{ "SHA256", 1 },
+			//};
+			//await collection.Indexes.CreateOneAsync(ind_def);
+
+			var options = new CreateIndexOptions() { Unique = true };
+			
+			var md5_ind = collection.Indexes.CreateOneAsync(new CreateIndexModel<ThinHashes>(
+				new IndexKeysDefinitionBuilder<ThinHashes>().Ascending(t => t.HashMD5), options));
+
+			var sha256_ind = collection.Indexes.CreateOneAsync(new CreateIndexModel<ThinHashes>(
+				new IndexKeysDefinitionBuilder<ThinHashes>().Ascending(t => t.HashSHA256), options));
+
+			await Task.WhenAll(md5_ind, sha256_ind);
+
+			var idxes = await collection.Indexes.ListAsync();
+			foreach (var idx in idxes.ToEnumerable())
+			{
+				Console.WriteLine($"index {idx}");
+			}
 		}
 
 		#endregion Implementation

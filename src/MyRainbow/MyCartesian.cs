@@ -1,12 +1,26 @@
-﻿using System;
+﻿using MongoDB.Bson.Serialization.Attributes;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace MyRainbow
 {
+	public class ThinHashes
+	{
+		//[JsonProperty(PropertyName = "Key")]
+		[BsonId]
+		public string Key { get; set; }
+
+		//[JsonProperty(PropertyName = "HashMD5")]
+		public string HashMD5 { get; set; }
+
+		//[JsonProperty(PropertyName = "HashSHA256")]
+		public string HashSHA256 { get; set; }
+	}
+
 	class MyCartesian
 	{
-		private const string _longAlphabet = @"abcdefghijklmnopqrstuvwxyz0123456789";
+		//private const string _longAlphabet = @"abcdefghijklmnopqrstuvwxyz0123456789";
 		private const string _smallAlphabet = @"abcd";
 
 		public string Alphabet { get; private set; }

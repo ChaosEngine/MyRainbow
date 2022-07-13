@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 
 namespace MyRainbow
 {
@@ -11,9 +12,10 @@ namespace MyRainbow
 	{
 		private IEnumerable<IEnumerable<char>> _tableOfTableOfChars;
 		private MD5 _hasherMD5;
-		private Stopwatch _stopwatch;
 		private SHA256 _hasherSHA256;
+		private Stopwatch _stopwatch;
 		private bool _purge;
+		private bool _interrupted;
 
 		private IConfiguration Configuration { get; set; }
 
@@ -51,281 +53,93 @@ namespace MyRainbow
 			return from;
 		}
 
+		private bool ShouldStopFunction(string key, string hashMD5, string hashSHA256, long counter, long tps)
+		{
+			Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
+			if (Console.KeyAvailable)
+			{
+				_interrupted = true;
+				return true;
+			}
+			return false;
+		}
+
+		internal async Task ExecuteSteps(IDbHasher dbase)
+		{
+			await dbase.EnsureExist();
+			if (_purge)
+				await dbase.Purge();
+
+			_interrupted = false;
+
+			await dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256, ShouldStopFunction, _stopwatch);
+
+			_stopwatch.Stop();
+
+			if (!_interrupted)
+				await dbase.PostGenerateExecute();
+			await dbase.Verify();
+		}
+
 		#region Examples
 
-		internal void SqlServerExample()
+		internal async Task SqlServerExample()
 		{
 			using (var dbase = new SqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("SqlConnection")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void RedisExample()
+		internal async Task RedisExample()
 		{
 			using (var dbase = new RedisHasher(GetParamFromCmdSecretOrEnv<string>("Redis")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void MongoDBExample()
+		internal async Task MongoDBExampleAsync()
 		{
 			using (var dbase = new MongoDBHasher(GetParamFromCmdSecretOrEnv<string>("MongoDB")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void CassandraExample()
+		internal async Task CassandraExampleAsync()
 		{
 			using (var dbase = new CassandraDBHasher(GetParamFromCmdSecretOrEnv<string>("Cassandra")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void MySqlExample()
+		internal async Task MySqlExampleAsync()
 		{
 			using (var dbase = new MySqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("MySQL")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void PostgreSqlExample()
+		internal async Task PostgreSqlExampleAsync()
 		{
 			using (var dbase = new PostgreSqlDatabaseHasher(GetParamFromCmdSecretOrEnv<string>("PostgreSql")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void SqlLiteExample()
+		internal async Task SqlLiteExampleAsync()
 		{
 			using (var dbase = new SqliteHasher(GetParamFromCmdSecretOrEnv<string>("Sqlite")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void CosmosDBExample()
+		internal async Task CosmosDBExampleAsync()
 		{
 			using (var dbase = new CosmosDBHasher(GetSectionFromCmdSecretOrEnv("CosmosDB")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
-		internal void OracleExample()
+		internal async Task OracleExampleAsync()
 		{
 			using (var dbase = new OracleHasher(GetParamFromCmdSecretOrEnv<string>("Oracle")))
-			{
-				dbase.EnsureExist();
-				if (_purge)
-					dbase.Purge();
-
-				bool interrupted = false;
-
-				dbase.Generate(_tableOfTableOfChars, _hasherMD5, _hasherSHA256,
-					(key, hashMD5, hashSHA256, counter, tps) =>
-					{
-						Console.WriteLine($"MD5({key})={hashMD5},SHA256({key})={hashSHA256},counter={counter},tps={tps}");
-						if (Console.KeyAvailable)
-						{
-							interrupted = true;
-							return true;
-						}
-						return false;
-					}, _stopwatch);
-
-				_stopwatch.Stop();
-
-				if (!interrupted)
-					dbase.PostGenerateExecute();
-				dbase.Verify();
-			}
+				await ExecuteSteps(dbase);
 		}
 
 		#endregion Examples
 
-		internal int Exeute()
+		internal async Task<int> ExeuteAsync()
 		{
 			string db_kind;
 			try
@@ -344,11 +158,10 @@ namespace MyRainbow
 
 				_tableOfTableOfChars = cart.Generate2();
 				Console.WriteLine("Keys generated");
-
 			}
 			catch (Exception)
 			{
-				Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
+				await Console.Error.WriteLineAsync($@"{Environment.NewLine}Rainbow table simplistic generator. Running method: {GetType().Namespace} /DBKind=[string,values(sqlserver,mysql,redis,cassandra,sqlite)]"
 					+ $@"/Alphabet=[string,default:abcdefghijklmopqrstuvwxyz] /Length=[int,default:5] /Purge=[bool,default:false]{Environment.NewLine}{Environment.NewLine}"
 					+ $@"/SqlConnection='...' or /MySQL='...' or /Sqlite='Filename=./database.db' or /[other db connection]='...'");
 				Console.ReadKey();
@@ -359,58 +172,57 @@ namespace MyRainbow
 			{
 				_stopwatch = new Stopwatch();
 
-
 				switch (db_kind?.Trim()?.ToLower())
 				{
 					case "sqlserver":
 					case "mssql":
-						SqlServerExample();
+						await SqlServerExample();
 						break;
 
 					case "mysql":
 					case "mariadb":
 					case "maria":
-						MySqlExample();
+						await MySqlExampleAsync();
 						break;
 
 					case "redis":
-						RedisExample();
+						await RedisExample();
 						break;
 
 					case "mongo":
 					case "mongodb":
-						MongoDBExample();
+						await MongoDBExampleAsync();
 						break;
 
 					case "cassandra":
 					case "casandra":
 					case "cassandradb":
-						CassandraExample();
+						await CassandraExampleAsync();
 						break;
 
 					case "sqlite":
 					case "lite":
-						SqlLiteExample();
+						await SqlLiteExampleAsync();
 						break;
 
 					case "psql":
 					case "npsql":
 					case "postgres":
 					case "postgresql":
-						PostgreSqlExample();
+						await PostgreSqlExampleAsync();
 						break;
 
 					case "cosmosdb":
 					case "cosmos":
 					case "azuredb":
 					case "azure":
-						CosmosDBExample();
+						await CosmosDBExampleAsync();
 						break;
 
 					case "oracle":
 					case "orcle":
 					case "orcl":
-						OracleExample();
+						await OracleExampleAsync();
 						break;
 
 					default:
@@ -418,26 +230,22 @@ namespace MyRainbow
 				}
 
 				Console.WriteLine($"Done. Elpased time = {_stopwatch.Elapsed}");
-				//Console.ReadKey();
 
 				return 0;
 			}//end using(s)
 		}
-	}
 
-	public class Program
-	{
-		public static int Main(string[] args)
+		public static async Task<int> Main(string[] args)
 		{
 			try
 			{
 				HashCreator hc = new HashCreator();
 				hc.SetupConfiguration(args);
-				return hc.Exeute();
+				return await hc.ExeuteAsync();
 			}
 			catch (Exception ex)
 			{
-				Console.Error.WriteLineAsync(ex.Message + Environment.NewLine + ex.StackTrace);
+				await Console.Error.WriteLineAsync(ex.Message + Environment.NewLine + ex.StackTrace);
 				Debug.WriteLine(ex.Message + Environment.NewLine + ex.StackTrace);
 				return 1;
 			}
