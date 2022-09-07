@@ -54,7 +54,7 @@
 		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="3.21.70" />
 		<PackageReference Include="MySqlConnector" Version="2.1.13" />
 		<PackageReference Include="Npgsql" Version="6.0.6" />
-		<PackageReference Include="StackExchange.Redis" Version="2.6.48" />
+		<PackageReference Include="StackExchange.Redis" Version="2.6.66" />
 	</ItemGroup>
 
 </Project>
