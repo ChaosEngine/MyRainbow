@@ -47,7 +47,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.7" />
 		<PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.22.0" />
 		<PackageReference Include="MongoDB.Driver" Version="2.27.0" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.20.1" />
