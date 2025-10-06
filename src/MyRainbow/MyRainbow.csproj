@@ -53,7 +53,7 @@
 		<PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
 		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.9.1" />
 		<PackageReference Include="MySqlConnector" Version="2.4.0" />
-		<PackageReference Include="Npgsql" Version="9.0.3" />
+		<PackageReference Include="Npgsql" Version="9.0.4" />
 		<PackageReference Include="StackExchange.Redis" Version="2.9.25" />
 	</ItemGroup>
 
