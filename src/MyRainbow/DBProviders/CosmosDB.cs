@@ -1,4 +1,6 @@
-﻿using Microsoft.Azure.Documents;
+﻿#if ENABLE_COSMOS_DB
+
+using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Configuration;
@@ -484,3 +486,5 @@ namespace MyRainbow.DBProviders
 		}
 	}
 }
+
+#endif
