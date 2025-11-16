@@ -15,7 +15,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-		<DefineConstants>DEBUG;TRACE</DefineConstants>
+		<DefineConstants>DEBUG;TRACE;ENABLE_COSMOS_DB</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -48,8 +48,10 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.55.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
 		<PackageReference Include="MongoDB.Driver" Version="3.5.0" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.0" />
 		<PackageReference Include="MySqlConnector" Version="2.5.0" />
 		<PackageReference Include="Npgsql" Version="9.0.4" />

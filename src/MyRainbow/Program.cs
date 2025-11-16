@@ -81,7 +81,7 @@ namespace MyRainbow
 			await dbase.Verify();
 		}
 
-		#region Examples
+        #region Examples
 
 		internal async Task SqlServerExample()
 		{
