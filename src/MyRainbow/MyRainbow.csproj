@@ -46,7 +46,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.1" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.56.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
 		<PackageReference Include="MongoDB.Driver" Version="3.5.2" />
