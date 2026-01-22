@@ -48,11 +48,11 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.2" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.2" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
-		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.56.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
+		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.57.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
 		<PackageReference Include="MongoDB.Driver" Version="3.6.0" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.0" />
+		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />
 		<PackageReference Include="MySqlConnector" Version="2.5.0" />
 		<PackageReference Include="Npgsql" Version="10.0.1" />
 		<PackageReference Include="StackExchange.Redis" Version="2.10.1" />
