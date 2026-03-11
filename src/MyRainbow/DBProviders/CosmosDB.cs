@@ -1,6 +1,7 @@
-﻿using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.Documents.Linq;
+﻿#if ENABLE_COSMOS_DB
+
+using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Linq;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System;
@@ -10,477 +11,324 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace MyRainbow.DBProviders
 {
-	internal class CosmosDBHasher : DbHasher, IDisposable
-	{
-		private readonly ThinHashesDocumentDBRepository _db;
-
-		public CosmosDBHasher(IConfigurationSection conf)
-		{
-			if (conf == null)
-				throw new NullReferenceException("bad config");
-
-			string endpoint = conf["Endpoint"];
-			string key = conf["Key"];
-			string databaseId = conf["DatabaseId"];
-			string collectionId = conf["CollectionId"];
-
-			_db = new ThinHashesDocumentDBRepository(endpoint, key, databaseId, collectionId);
-		}
-
-		#region IDisposable Support
-		private bool disposedValue = false; // To detect redundant calls
-
-		protected virtual void Dispose(bool disposing)
-		{
-			if (!disposedValue)
-			{
-				if (disposing)
-				{
-					// TODO: dispose managed state (managed objects).
-					if (_db != null)
-					{
-						_db.Cleanup();
-					}
-				}
-
-				// TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-				// TODO: set large fields to null.
-
-				disposedValue = true;
-			}
-		}
-
-		// TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-		// ~CosmosDBHasher() {
-		//   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-		//   Dispose(false);
-		// }
-
-		// This code added to correctly implement the disposable pattern.
-		public void Dispose()
-		{
-			// Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-			Dispose(true);
-			// TODO: uncomment the following line if the finalizer is overridden above.
-			// GC.SuppressFinalize(this);
-		}
-		#endregion IDisposable Support
-
-		public override async Task EnsureExist()
-		{
-			await _db.Initialize();
-
-
-			string scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkDelete.js";
-			string scriptName = "bulkDelete.js";
-			await _db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName);
-
-			scriptFileName = "DBScripts" + Path.DirectorySeparatorChar + "CosmosDB-bulkImport.js";
-			scriptName = "bulkImport.js";
-			await _db.CreateSprocIfNotExists(scriptFileName, scriptName, scriptName);
-		}
-
-		public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
-			Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
-			int batchInsertCount = 1_000, int batchTransactionCommitCount = 5_000)
-		{
-			string last_key_entry = await GetLastKeyEntry();
-
-			double? nextPause = null;
-			if (stopwatch != null)
-			{
-				stopwatch.Start();
-				nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
-			}
-			long counter = 0, last_pause_counter = 0, tps = 0, id = 0;
-			var documents = new List<DocumentDBHash>(1000);
-
-			foreach (var chars_table in tableOfTableOfChars)
-			{
-				id++;
-				var key = string.Concat(chars_table);
-				if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
-				var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
-
-				var doc = new DocumentDBHash
-				{
-					Id = id.ToString(),
-					Key = key,
-					HashMD5 = hashMD5,
-					HashSHA256 = hashSHA256
-				};
-				//var job = _db.CreateItemAsync(doc);
-				//job.Wait();
-				//var ret_document = job.Result;
-				documents.Add(doc);
-
-				if (counter % batchTransactionCommitCount == 0)
-				{
-					var job = await _db.InvokeBulkInsertSproc(documents);
-					documents.Clear();
-
-					if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
-						break;
-				}
-
-				if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
-				{
-					if (last_pause_counter > 0)
-					{
-						tps = counter - last_pause_counter;
-						nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
-					}
-					last_pause_counter = counter;
-				}
-
-				counter++;
-			}
-
-			if (documents.Count > 0)
-			{
-				var job = await _db.InvokeBulkInsertSproc(documents);
-				documents.Clear();
-			}
-		}
-
-		public override async Task<string> GetLastKeyEntry()
-		{
-			var job = await GetLastKeyEntryAsync();
-			return job;
-		}
-
-		public async Task<string> GetLastKeyEntryAsync()
-		{
-			var last = await _db.GetItemsSortedDescByKeyAsync(1);
-			var el = last.FirstOrDefault();
-			if (el == null)
-				return null;
-			else
-				return el.Key;
-		}
-
-		public override async Task Purge()
-		{
-			await _db.InvokeBulkDeleteSproc();
-		}
-
-		public override async Task Verify()
-		{
-			var job_task = _db.GetItemsAsync(d => d.HashMD5 == "b25319faaaea0bf397b2bed872b78c45");
-			var lst = await job_task;
-			foreach (DocumentDBHash rdr in lst)
-			{
-				Console.WriteLine("key={0} md5={1} sha256={2}", rdr.Key, rdr.HashMD5, rdr.HashSHA256);
-			}
-		}
-	}
-
-	public class DocumentDBHash : ThinHashes
-	{
-		[JsonProperty(PropertyName = "id")]
-		public string Id { get; set; }
-	}
-
-	class ThinHashesDocumentDBRepository : DocumentDBRepository<DocumentDBHash>
-	{
-		private Guid transactionId;
-
-		public ThinHashesDocumentDBRepository(string endpoint, string key, string databaseId, string collectionId)
-			: base(endpoint, key, databaseId, collectionId)
-		{
-			transactionId = Guid.NewGuid();
-		}
-
-		public override async Task Initialize()
-		{
-			_client = new DocumentClient(new Uri(_endpoint), _key);
-			await CreateDatabaseIfNotExistsAsync();
-			await CreateCollectionIfNotExistsAsync(new DocumentCollection
-			{
-				Id = _collectionId,
-				//myCollection.PartitionKey.Paths.Add("/Key"),
-				UniqueKeyPolicy = new UniqueKeyPolicy
-				{
-					UniqueKeys = new Collection<UniqueKey>
-					{
-						new UniqueKey { Paths = new Collection<string> { "/Key", "/HashMD5", "/HashSHA256" }},
-					}
-				},
-				IndexingPolicy = new IndexingPolicy(new RangeIndex(DataType.String) { Precision = -1 }),
-			});
-		}
-
-		public async Task<IEnumerable<DocumentDBHash>> GetItemsSortedDescByKeyAsync(int itemsCount = -1)
-		{
-			IDocumentQuery<DocumentDBHash> query = _client.CreateDocumentQuery<DocumentDBHash>(
-				UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
-				new FeedOptions { MaxItemCount = itemsCount/*, EnableCrossPartitionQuery = true*/ })
-				//.Where(predicate)
-				.OrderByDescending(o => o.Key)
-				.Take(itemsCount)
-				.AsDocumentQuery();
-
-			List<DocumentDBHash> results = new List<DocumentDBHash>();
-			while (query.HasMoreResults)
-			{
-				results.AddRange(await query.ExecuteNextAsync<DocumentDBHash>());
-			}
-
-			return results;
-		}
-
-		internal async Task InvokeBulkDeleteSproc()
-		{
-			var client = new DocumentClient(new Uri(_endpoint), _key);
-			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
-
-			string scriptName = "bulkDelete.js";
-
-			Uri sprocUri = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, scriptName);
-
-			try
-			{
-				int count = 20;
-				int deleted;
-				bool continuation;
-				do
-				{
-					var response = await client.ExecuteStoredProcedureAsync<Document>(sprocUri,
-						//new RequestOptions { PartitionKey = new PartitionKey("mmmmm") },
-						transactionId);
-					continuation = response.Response.GetPropertyValue<bool>("continuation");
-					deleted = response.Response.GetPropertyValue<int>("deleted");
-				}
-				while (continuation && count-- > 0);
-			}
-			catch (DocumentClientException)
-			{
-				throw;
-			}
-		}
-
-		internal async Task<int> InvokeBulkInsertSproc(List<DocumentDBHash> documents)
-		{
-			int maxFiles = 2000, maxScriptSize = 50000;
-			int currentCount = 0;
-			int fileCount = maxFiles != 0 ? Math.Min(maxFiles, documents.Count) : documents.Count;
-
-
-			Uri sproc = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, "bulkImport.js");
-
-
-			// 4. Create a batch of docs (MAX is limited by request size (2M) and to script for execution.           
-			// We send batches of documents to create to script.
-			// Each batch size is determined by MaxScriptSize.
-			// MaxScriptSize should be so that:
-			// -- it fits into one request (MAX reqest size is 16Kb).
-			// -- it doesn't cause the script to time out.
-			// -- it is possible to experiment with MaxScriptSize to get best perf given number of throttles, etc.
-			while (currentCount < fileCount)
-			{
-				// 5. Create args for current batch.
-				//    Note that we could send a string with serialized JSON and JSON.parse it on the script side,
-				//    but that would cause script to run longer. Since script has timeout, unload the script as much
-				//    as we can and do the parsing by client and framework. The script will get JavaScript objects.
-				string argsJson = CreateBulkInsertScriptArguments(documents, currentCount, fileCount, maxScriptSize);
-
-				var args = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(argsJson) };
-
-				// 6. execute the batch.
-				StoredProcedureResponse<int> scriptResult = await _client.ExecuteStoredProcedureAsync<int>(
-					sproc,
-					//new RequestOptions { PartitionKey = new PartitionKey("mmmmm") },
-					args);
-
-				// 7. Prepare for next batch.
-				int currentlyInserted = scriptResult.Response;
-				currentCount += currentlyInserted;
-			}
-
-			return currentCount;
-		}
-
-		private static string CreateBulkInsertScriptArguments(List<DocumentDBHash> docs, int currentIndex, int maxCount, int maxScriptSize)
-		{
-			var jsonDocumentArray = new StringBuilder(1000);
-
-			if (currentIndex >= maxCount) return string.Empty;
-
-			string serialized = JsonConvert.SerializeObject(docs[currentIndex]);
-			jsonDocumentArray.Append("[").Append(serialized);
-
-			int scriptCapacityRemaining = maxScriptSize;
-
-			int i = 1;
-			while (jsonDocumentArray.Length < scriptCapacityRemaining && (currentIndex + i) < maxCount)
-			{
-				jsonDocumentArray.Append(", ").Append(JsonConvert.SerializeObject(docs[currentIndex + i]));
-				i++;
-			}
-
-			jsonDocumentArray.Append("]");
-			return jsonDocumentArray.ToString();
-		}
-	}
-
-	abstract class DocumentDBRepository<T> where T : class
-	{
-		protected readonly string _endpoint, _key, _databaseId, _collectionId;
-		protected DocumentClient _client;
-
-		public DocumentDBRepository(string endpoint, string key, string databaseId, string collectionId)
-		{
-			_endpoint = endpoint;
-			_key = key;
-			_databaseId = databaseId;
-			_collectionId = collectionId;
-		}
-
-		public async Task<T> GetByIDAsync(string id)
-		{
-			try
-			{
-				Document document = await _client.ReadDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
-				return (T)(dynamic)document;
-			}
-			catch (DocumentClientException e)
-			{
-				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
-				{
-					return null;
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
-
-		public async Task<IEnumerable<T>> GetItemsAsync(Expression<Func<T, bool>> predicate, int itemsCount = -1)
-		{
-			IDocumentQuery<T> query = _client.CreateDocumentQuery<T>(
-				UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
-				new FeedOptions { MaxItemCount = itemsCount })
-				.Where(predicate)
-				.AsDocumentQuery();
-
-			List<T> results = new List<T>();
-			while (query.HasMoreResults)
-			{
-				results.AddRange(await query.ExecuteNextAsync<T>());
-			}
-
-			return results;
-		}
-
-		public async Task<Document> CreateItemAsync(T item)
-		{
-			return await _client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId), item,
-				disableAutomaticIdGeneration: true);
-		}
-
-		public async Task<Document> UpdateItemAsync(string id, T item)
-		{
-			return await _client.ReplaceDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id), item);
-		}
-
-		public async Task DeleteItemAsync(string id)
-		{
-			await _client.DeleteDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, _collectionId, id));
-		}
-
-		public abstract Task Initialize();
-
-		public void Cleanup()
-		{
-			if (_client != null)
-			{
-				_client.Dispose();
-				_client = null;
-			}
-		}
-
-		protected async Task CreateDatabaseIfNotExistsAsync()
-		{
-			try
-			{
-				await _client.ReadDatabaseAsync(UriFactory.CreateDatabaseUri(_databaseId));
-			}
-			catch (DocumentClientException e)
-			{
-				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
-				{
-					await _client.CreateDatabaseAsync(new Database { Id = _databaseId });
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
-
-		protected async Task CreateCollectionIfNotExistsAsync(DocumentCollection myNewCollection)
-		{
-			try
-			{
-				await _client.ReadDocumentCollectionAsync(UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId));
-			}
-			catch (DocumentClientException e)
-			{
-				if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
-				{
-					await _client.CreateDocumentCollectionAsync(
-						UriFactory.CreateDatabaseUri(_databaseId),
-						myNewCollection,
-						new RequestOptions { OfferThroughput = 2500 });
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
-
-		internal async Task CreateSprocIfNotExists(string scriptFileName, string scriptId, string scriptName)
-		{
-			var client = new DocumentClient(new Uri(_endpoint), _key);
-			Uri collectionLink = UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId);
-
-			var sproc = new StoredProcedure
-			{
-				Id = scriptId,
-				Body = File.ReadAllText(scriptFileName)
-			};
-
-			bool needToCreate = false;
-			Uri sprocUri = UriFactory.CreateStoredProcedureUri(_databaseId, _collectionId, scriptName);
-
-			try
-			{
-				await client.ReadStoredProcedureAsync(sprocUri);
-			}
-			catch (DocumentClientException de)
-			{
-				if (de.StatusCode != System.Net.HttpStatusCode.NotFound)
-				{
-					throw;
-				}
-				else
-				{
-					needToCreate = true;
-				}
-			}
-
-			if (needToCreate)
-			{
-				await client.CreateStoredProcedureAsync(collectionLink, sproc);
-			}
-		}
-	}
+    internal class CosmosDBHasher : DbHasher, IDisposable
+    {
+        private readonly ThinHashesCosmosRepository _db;
+
+        public CosmosDBHasher(IConfigurationSection conf)
+        {
+            if (conf == null)
+                throw new NullReferenceException("bad config");
+
+            string accountendpoint = conf["AccountEndpoint"];
+            string accountKey = conf["AccountKey"];
+            string databaseId = conf["DatabaseName"];
+            string containerId = conf["ContainerName"];
+
+            _db = new ThinHashesCosmosRepository(accountendpoint, accountKey, databaseId, containerId);
+        }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    _db?.Cleanup();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
+
+        public override async Task EnsureExist()
+        {
+            await _db.Initialize();
+        }
+
+        public override async Task Generate(IEnumerable<IEnumerable<char>> tableOfTableOfChars, MD5 hasherMD5, SHA256 hasherSHA256,
+            Func<string, string, string, long, long, bool> shouldBreakFunc, Stopwatch stopwatch = null,
+            int batchInsertCount = 1_000, int batchTransactionCommitCount = 5_000)
+        {
+            string last_key_entry = await GetLastKeyEntry();
+
+            double? nextPause = null;
+            if (stopwatch != null)
+            {
+                stopwatch.Start();
+                nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;//next check after 1sec
+            }
+            long counter = 0, last_pause_counter = 0, tps = 0, id = 0;
+            var documents = new List<DocumentDBHash>(1000);
+
+            foreach (var chars_table in tableOfTableOfChars)
+            {
+                id++;
+                var key = string.Concat(chars_table);
+                if (!string.IsNullOrEmpty(last_key_entry) && last_key_entry.CompareTo(key) >= 0) continue;
+                var (hashMD5, hashSHA256) = CalculateTwoHashes(hasherMD5, hasherSHA256, key);
+
+                var doc = new DocumentDBHash
+                {
+                    Id = id.ToString(),
+                    Key = key,
+                    HashMD5 = hashMD5,
+                    HashSHA256 = hashSHA256
+                };
+                documents.Add(doc);
+
+                if (counter % batchTransactionCommitCount == 0)
+                {
+                    var inserted = await _db.InvokeBulkInsertAsync(documents, batchInsertCount);
+                    documents.Clear();
+
+                    if (shouldBreakFunc(key, hashMD5, hashSHA256, counter, tps))
+                        break;
+                }
+
+                if (stopwatch != null && stopwatch.Elapsed.TotalMilliseconds >= nextPause)
+                {
+                    if (last_pause_counter > 0)
+                    {
+                        tps = counter - last_pause_counter;
+                        nextPause = stopwatch.Elapsed.TotalMilliseconds + 1000;
+                    }
+                    last_pause_counter = counter;
+                }
+
+                counter++;
+            }
+
+            if (documents.Count > 0)
+            {
+                var inserted = await _db.InvokeBulkInsertAsync(documents, batchInsertCount);
+                documents.Clear();
+            }
+        }
+
+        public override async Task<string> GetLastKeyEntry()
+        {
+            var job = await GetLastKeyEntryAsync();
+            return job;
+        }
+
+        public async Task<string> GetLastKeyEntryAsync()
+        {
+            var last = await _db.GetItemsSortedDescByKeyAsync(1);
+            var el = last.FirstOrDefault();
+            if (el == null)
+                return null;
+            else
+                return el.Key;
+        }
+
+        public override async Task Purge()
+        {
+            await _db.InvokeBulkDeleteAsync();
+        }
+
+        public override async Task Verify()
+        {
+            var lst = await _db.GetItemsAsync<DocumentDBHash>(d => d.HashMD5 == "b25319faaaea0bf397b2bed872b78c45");
+            foreach (DocumentDBHash rdr in lst)
+            {
+                Console.WriteLine("key={0} md5={1} sha256={2}", rdr.Key, rdr.HashMD5, rdr.HashSHA256);
+            }
+        }
+    }
+
+    public class DocumentDBHash : ThinHashes
+    {
+        [JsonProperty(PropertyName = "id")]
+        public string Id { get; set; }
+    }
+
+    class ThinHashesCosmosRepository
+    {
+        private readonly string _endpoint, _key, _databaseId, _containerId;
+        private CosmosClient _client;
+        private Database _database;
+        private Container _container;
+
+        public ThinHashesCosmosRepository(string endpoint, string key, string databaseId, string containerId)
+        {
+            _endpoint = endpoint;
+            _key = key;
+            _databaseId = databaseId;
+            _containerId = containerId;
+        }
+
+        public async Task Initialize()
+        {
+            _client = new CosmosClient(_endpoint, _key, new CosmosClientOptions());
+
+            // create database if not exists
+            var dbResponse = await _client.CreateDatabaseIfNotExistsAsync(_databaseId);
+            _database = dbResponse.Database;
+
+            // create container if not exists with partition key /Key
+            var containerProperties = new ContainerProperties(_containerId, "/Key");
+
+            // set unique keys if supported
+            containerProperties.UniqueKeyPolicy = new UniqueKeyPolicy();
+            var uk = new UniqueKey();
+            uk.Paths.Add("/Key");
+            uk.Paths.Add("/HashMD5");
+            uk.Paths.Add("/HashSHA256");
+            containerProperties.UniqueKeyPolicy.UniqueKeys.Add(uk);
+
+            var containerResponse = await _database.CreateContainerIfNotExistsAsync(containerProperties, throughput: 2500);
+            _container = containerResponse.Container;
+        }
+
+        public async Task<IEnumerable<DocumentDBHash>> GetItemsSortedDescByKeyAsync(int itemsCount = -1)
+        {
+            string sql = "SELECT * FROM c ORDER BY c.Key DESC";
+            var qd = new QueryDefinition(sql);
+            var requestOptions = new QueryRequestOptions { MaxItemCount = itemsCount };
+            var iterator = _container.GetItemQueryIterator<DocumentDBHash>(qd, requestOptions: requestOptions);
+
+            List<DocumentDBHash> results = new List<DocumentDBHash>();
+            while (iterator.HasMoreResults && (itemsCount <= 0 || results.Count < itemsCount))
+            {
+                var page = await iterator.ReadNextAsync();
+                results.AddRange(page.Resource);
+            }
+
+            if (itemsCount > 0 && results.Count > itemsCount)
+                return results.Take(itemsCount).ToList();
+
+            return results;
+        }
+
+        public async Task<IEnumerable<T>> GetItemsAsync<T>(Expression<Func<T, bool>> predicate, int itemsCount = -1) where T : class
+        {
+            var queryable = _container.GetItemLinqQueryable<T>(allowSynchronousQueryExecution: false).Where(predicate);
+            var iterator = queryable.ToFeedIterator();
+
+            List<T> results = new List<T>();
+            while (iterator.HasMoreResults && (itemsCount <= 0 || results.Count < itemsCount))
+            {
+                var page = await iterator.ReadNextAsync();
+                results.AddRange(page.Resource);
+            }
+
+            if (itemsCount > 0 && results.Count > itemsCount)
+                return results.Take(itemsCount).ToList();
+
+            return results;
+        }
+
+        public async Task<DocumentDBHash> GetByIdAsync(string id)
+        {
+            var sql = "SELECT * FROM c WHERE c.id = @id";
+            var qd = new QueryDefinition(sql).WithParameter("@id", id);
+            var it = _container.GetItemQueryIterator<DocumentDBHash>(qd);
+            var lst = new List<DocumentDBHash>();
+            while (it.HasMoreResults)
+            {
+                var pg = await it.ReadNextAsync();
+                lst.AddRange(pg.Resource);
+                if (lst.Count > 0) break;
+            }
+            return lst.FirstOrDefault();
+        }
+
+        public async Task<ItemResponse<DocumentDBHash>> CreateItemAsync(DocumentDBHash item)
+        {
+            return await _container.CreateItemAsync(item, new PartitionKey(item.Key));
+        }
+
+        public async Task<ItemResponse<DocumentDBHash>> UpdateItemAsync(string id, DocumentDBHash item)
+        {
+            return await _container.ReplaceItemAsync(item, id, new PartitionKey(item.Key));
+        }
+
+        public async Task DeleteItemAsync(string id)
+        {
+            var existing = await GetByIdAsync(id);
+            if (existing == null) return;
+            await _container.DeleteItemAsync<DocumentDBHash>(existing.Id, new PartitionKey(existing.Key));
+        }
+
+        public void Cleanup()
+        {
+            _client?.Dispose();
+            _client = null;
+        }
+
+        public async Task<int> InvokeBulkInsertAsync(List<DocumentDBHash> documents, int batchInsertCount = 1000)
+        {
+            if (documents == null || documents.Count == 0) return 0;
+
+            int totalInserted = 0;
+            int maxDegree = 50; // limit concurrency
+
+            for (int i = 0; i < documents.Count; i += batchInsertCount)
+            {
+                var batch = documents.Skip(i).Take(batchInsertCount).ToList();
+                var tasks = new List<Task<ItemResponse<DocumentDBHash>>>();
+                var throttler = new System.Threading.SemaphoreSlim(maxDegree);
+
+                foreach (var doc in batch)
+                {
+                    await throttler.WaitAsync().ConfigureAwait(false);
+                    var task = _container.CreateItemAsync(doc, new PartitionKey(doc.Key))
+                        .ContinueWith(t => { throttler.Release(); return t.Result; });
+                    tasks.Add(task);
+                }
+
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+                totalInserted += results.Length;
+                throttler.Dispose();
+            }
+
+            return totalInserted;
+        }
+
+        public async Task InvokeBulkDeleteAsync()
+        {
+            // iterate all items and delete them in parallel (bounded)
+            var sql = "SELECT c.id, c.Key FROM c";
+            var qd = new QueryDefinition(sql);
+            var iterator = _container.GetItemQueryIterator<ThinHashes>(qd);
+
+            int maxDegree = 50;
+            var deleteTasks = new List<Task>();
+            var throttler = new System.Threading.SemaphoreSlim(maxDegree);
+
+            while (iterator.HasMoreResults)
+            {
+                var page = await iterator.ReadNextAsync();
+                foreach (var item in page.Resource)
+                {
+                    await throttler.WaitAsync().ConfigureAwait(false);
+                    var task = _container.DeleteItemAsync<ThinHashes>(item.Key, new PartitionKey(item.Key))
+                        .ContinueWith(t => throttler.Release());
+                    deleteTasks.Add(task);
+                }
+            }
+
+            await Task.WhenAll(deleteTasks).ConfigureAwait(false);
+            throttler.Dispose();
+        }
+    }
 }
+
+#endif

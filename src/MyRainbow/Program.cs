@@ -81,7 +81,7 @@ namespace MyRainbow
 			await dbase.Verify();
 		}
 
-		#region Examples
+        #region Examples
 
 		internal async Task SqlServerExample()
 		{
@@ -125,19 +125,20 @@ namespace MyRainbow
 				await ExecuteSteps(dbase);
 		}
 
+#if ENABLE_COSMOS_DB
 		internal async Task CosmosDBExampleAsync()
 		{
 			using (var dbase = new CosmosDBHasher(GetSectionFromCmdSecretOrEnv("CosmosDB")))
 				await ExecuteSteps(dbase);
 		}
-
+#endif
 		internal async Task OracleExampleAsync()
 		{
 			using (var dbase = new OracleHasher(GetParamFromCmdSecretOrEnv<string>("Oracle")))
 				await ExecuteSteps(dbase);
 		}
 
-		#endregion Examples
+#endregion Examples
 
 		internal async Task<int> ExeuteAsync()
 		{
@@ -212,12 +213,14 @@ namespace MyRainbow
 						await PostgreSqlExampleAsync();
 						break;
 
+#if ENABLE_COSMOS_DB
 					case "cosmosdb":
 					case "cosmos":
 					case "azuredb":
 					case "azure":
 						await CosmosDBExampleAsync();
 						break;
+#endif
 
 					case "oracle":
 					case "orcle":
