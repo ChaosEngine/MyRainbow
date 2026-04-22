@@ -45,7 +45,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.6" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.6" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.6" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.7" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.6" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
