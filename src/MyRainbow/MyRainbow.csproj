@@ -48,7 +48,7 @@
 		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.7" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.7" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
-		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.58.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
+		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.59.0" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
 		<PackageReference Include="MongoDB.Driver" Version="3.8.0" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
