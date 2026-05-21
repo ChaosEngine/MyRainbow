@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.Security;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -24,12 +25,12 @@ namespace MyRainbow.DBProviders
 
 			//TODO: depend validation of client CA upon SSl Mode=Require (only that)
 			if (IsSSLRequired(connectionString))
-				Conn.ProvideClientCertificatesCallback = MyProvideClientCertificatesCallback;
+				Conn.SslClientAuthenticationOptionsCallback = MyProvideClientCertificatesCallback;
 
 			Conn.Open();
 			Tran = null;
 
-			void MyProvideClientCertificatesCallback(X509CertificateCollection clientCerts)
+			void MyProvideClientCertificatesCallback(SslClientAuthenticationOptions options)
 			{
 				//TODO: On linux there is no C cert store
 				if (Environment.OSVersion.Platform == PlatformID.Win32NT)
@@ -45,7 +46,7 @@ namespace MyRainbow.DBProviders
 						if (currentCerts != null && currentCerts.Count > 0)
 						{
 							var cert = currentCerts[0];
-							clientCerts.Add(cert);
+							options.ClientCertificates.Add(cert);
 						}
 					}
 				}
