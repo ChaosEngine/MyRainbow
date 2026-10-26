@@ -42,7 +42,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.63.2" Condition="$(DefineConstants.Contains('ENABLE_COSMOS_DB'))" />
 		<PackageReference Include="MongoDB.Driver" Version="3.13.0" />
 		<PackageReference Include="CassandraCSharpDriver" Version="3.23.0" />
