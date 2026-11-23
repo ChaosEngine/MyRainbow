@@ -49,7 +49,7 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.401" />
 		<PackageReference Include="MySqlConnector" Version="3.0.0" />
-		<PackageReference Include="Npgsql" Version="10.0.3" />
+		<PackageReference Include="Npgsql" Version="11.0.0" />
 		<PackageReference Include="StackExchange.Redis" Version="3.4.35" />
 		<PackageReference Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
 	</ItemGroup>
